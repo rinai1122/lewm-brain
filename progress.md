@@ -45,3 +45,36 @@ Resolution required before step 3's downstream work can run.
   pulls. Options: free space on C:, target a different drive for both
   the venv and the data cache, or use an external/cloud volume.
 - No installs were performed. All findings are inventory only.
+
+## 2026-04-25 — disk/GPU constraint resolved → Kaggle-only strategy
+User can't free local disk or upgrade GPU. Locked in a Kaggle-only
+runtime: laptop = editor + git only; all installs and runs on Kaggle
+Notebooks (T4/P100, 30 hr/week GPU); intermediates in a single
+user-owned Kaggle Dataset; data streamed/cached one session at a time.
+GitHub repo created (private, `rinai1122/lewm-brain`) and the existing
+commits pushed. Verified V-JEPA-2 is **not** gated (Apache 2.0); HF
+account dropped from the prep checklist. Smallest released V-JEPA-2 is
+ViT-L 0.3 B (`facebook/vjepa2-vitl-fpc64-256`); there is no ViT-B
+"base" — references to "base" in this repo now mean ViT-L. Kaggle
+account setup paused on the user's side pending phone access for
+verification.
+
+## 2026-04-25 — Step 3: data_notes.md
+Wrote `data_notes.md` from AllenSDK + DANDI + pynwb docs. Verified:
+session indexing via `EcephysProjectCache.get_session_table` on
+`session_id` × `ecephys_structure_acronyms`; six target visual cortical
+areas (VISp + VISl/VISal/VISpm/VISam/VISrl); two stimulus sets are
+mirrored on DANDI as `000021` (Brain Observatory 1.1, 32 mice / 477 GB)
+and `000022` (Functional Connectivity, 375 GB) — and only BO 1.1 has
+`natural_movie_three`; AllenSDK's three default unit filters
+(`isi_violations < 0.5`, `amplitude_cutoff < 0.1`,
+`presence_ratio > 0.9`); pynwb ROS3 streaming is preferred over fsspec
+but **needs conda's `h5py`**, not the PyPI build. Python compat:
+PyPI's latest `allensdk` is 2.16.2 (2023-11) with classifiers up to
+3.11; master branch declares 3.10–3.13. Plan is to target whatever
+Kaggle ships and pin from there. Items I deliberately did **not**
+guess at — exact movie repeat counts, exact frame counts per repeat,
+Kaggle Python version, ROS3-on-Kaggle viability — are listed in
+`data_notes.md` under "Things to verify on the very first Kaggle run."
+Four research-design questions surfaced for user input (held-out
+repeats, running-speed handling, depth pooling, single-session pick).
