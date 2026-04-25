@@ -22,7 +22,10 @@ Two convergent analyses on the same neural data:
 
 **Focal class — latent-predictive:**
 - LeWM
-- V-JEPA / V-JEPA-2
+- V-JEPA / V-JEPA-2 (note: smallest released V-JEPA-2 backbone is **ViT-L**
+  at 0.3 B params — `facebook/vjepa2-vitl-fpc64-256`, Apache 2.0, ungated.
+  No ViT-B "base" checkpoint exists; references to "base" in this repo mean
+  this ViT-L variant.)
 - I-JEPA
 
 **Comparison families:**
@@ -40,8 +43,38 @@ are directly comparable per neuron / per population.
 
 ## Data scope (this session)
 Mouse Allen Brain Observatory **Neuropixels** natural-movie sessions only.
-No fMRI / CNeuroMod yet. End-to-end pipeline lands on **V-JEPA-2 base + one
-session** before any breadth is added.
+No fMRI / CNeuroMod yet. End-to-end pipeline lands on **V-JEPA-2 ViT-L
+(`facebook/vjepa2-vitl-fpc64-256`) + one session** before any breadth is
+added.
+
+## Compute & storage strategy
+Local disk and GPU are too constrained to be the runtime — the laptop has
+9 GB free on C: and a 2 GB-VRAM MX450. So:
+
+- **Local laptop = editor + git only.** No `torch`, no `allensdk`, no
+  project venv on the laptop. All Python installs and runs happen on
+  Kaggle.
+- **Kaggle Notebooks = compute.** Free T4 (16 GB VRAM) / P100, ~30 hr/week
+  GPU quota, internet enabled (gated by phone verification on the Kaggle
+  account). One notebook per pipeline stage.
+- **Data = streamed from DANDI**, not cached locally. Allen Neuropixels
+  sessions are mirrored on DANDI as NWB; we open them via the
+  `pynwb` + `fsspec`/`remfile` streaming path so no full session ever
+  lands on disk. Exact incantation to be verified in step 3.
+- **Intermediates = a single Kaggle Dataset owned by the user.** Each
+  pipeline stage writes its outputs (extracted features, ridge weights,
+  per-neuron scores) as a new version of the dataset; the next stage
+  reads them as input. This makes the pipeline naturally resumable
+  across the ~12 hr Kaggle session limit and free of local-disk
+  pressure.
+- **Repro discipline.** Every notebook pins package versions, sets
+  every seed, and writes its resolved config + commit hash next to its
+  outputs in the dataset.
+
+Implication for development loop: every iteration is `git push` →
+re-run the affected Kaggle notebook. There is no fast local sanity-check
+for anything that needs torch or Allen data; debugging happens on
+Kaggle.
 
 ## Directory layout
 TBD — proposed in step 4 of the kickoff plan and pinned here once approved.
