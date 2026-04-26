@@ -26,7 +26,7 @@ def vjepa2_extract_features(
     pixels: np.ndarray,
     clip_frames: int = 64,
     stride: int = 1,
-    batch_size: int = 1,
+    batch_size: int = 4,
     device: str = "cuda",
     pool: str = "mean",
 ) -> np.ndarray:
@@ -78,9 +78,6 @@ def vjepa2_extract_features(
             else:
                 raise ValueError(f"unknown pool {pool!r}")
             feats.append(pooled.float().cpu().numpy())
-            del outputs, hidden, pooled, inputs
-            if device == "cuda":
-                torch.cuda.empty_cache()
             if (i // batch_size) % 50 == 0:
                 print(f"[features]   clip {i}/{n_clips}")
 

@@ -20,9 +20,14 @@ unit_filter:
 
 stimulus:
   primary: natural_movie_one
-  also: [natural_movie_three]
+  also: []  # natural_movie_three deferred — same code path, just slow
   frame_rate_hz: 30
   bin_width_s: null  # null => use 1 / frame_rate_hz
+
+stage2:
+  dataset_id: rinai1122/lewm-brain-stage2
+  dataset_title: lewm-brain stage 2 (V-JEPA-2 features)
+stage2_batch_size: 4
 
 heldout:
   policy: last_repeat   # one of {last_repeat, leave_one_out}

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .. import allen_data, features, stimuli
+from .. import allen_data, features, kaggle_io, stimuli
 from ..config import KAGGLE_WORKING, Config, write_artifact_manifest
 
 
@@ -84,6 +84,17 @@ def run(
             "elapsed_s": elapsed,
             "n_movie_frames": int(pixels.shape[0]),
         }
+
+        # Snapshot to Kaggle Dataset right after each stim writes — so a
+        # later kernel crash can't lose what we already extracted.
+        s2 = cfg.raw.get("stage2") or {}
+        ds_id = s2.get("dataset_id")
+        if ds_id:
+            ds_title = s2.get("dataset_title", f"lewm-brain {model_name}")
+            try:
+                kaggle_io.publish_to_kaggle_dataset(out_dir, ds_id, ds_title)
+            except Exception as exc:
+                print(f"[stage2] WARN auto-publish raised: {exc!r}")
 
     write_artifact_manifest(
         out_dir, cfg,
