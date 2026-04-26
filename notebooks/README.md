@@ -28,10 +28,10 @@ Create a new notebook on Kaggle. **Settings:**
 Three cells:
 
 ```bash
-# Cell 1 — install allensdk (heaviest dep) first with --prefer-binary
-# so pip doesn't try to build C extensions from source on the Kaggle
-# image. Then install the lewm_brain package itself.
-!pip install --prefer-binary allensdk
+# Cell 1 — install allensdk from MASTER (PyPI 2.16.2 from Nov 2023
+# pins numpy<1.24, which has no Python-3.12 wheel — Kaggle ships 3.12).
+# Master drops that pin and supports 3.10-3.13 per its pyproject.toml.
+!pip install --prefer-binary git+https://github.com/AllenInstitute/AllenSDK.git
 !pip install git+https://github.com/rinai1122/lewm-brain.git
 ```
 

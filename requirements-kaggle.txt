@@ -1,7 +1,8 @@
-# Pure additions on top of the Kaggle base image. The base image already
-# ships torch, transformers, numpy, pandas, scikit-learn, xarray,
-# matplotlib at recent versions. Allen is the only thing missing.
+# NOTE: not consumed by the Kaggle notebook recipe anymore — Cell 1
+# installs allensdk directly from its master branch because the PyPI
+# release (2.16.2, Nov 2023) pins numpy<1.24 and has no Python 3.12
+# wheel for that numpy. Kept here for documentation / future use.
 #
-# We deliberately do NOT pin pynwb / hdmf / h5py here — let allensdk's
-# own dep solver pick versions that match its release.
-allensdk
+# When a post-2.16.2 allensdk is released to PyPI (with Python 3.12
+# support), revert Cell 1 to `pip install allensdk` and pin here.
+git+https://github.com/AllenInstitute/AllenSDK.git

@@ -180,6 +180,14 @@ config that lands next to each output.
   `allensdk==2.16.2` if it works on that interpreter; otherwise install
   master via `pip install git+https://github.com/AllenInstitute/AllenSDK.git`.
 
+**Verified 2026-04-26 on first Kaggle run:** the current Kaggle base
+image is **Python 3.12**, with `numpy 2.0.2`, `pandas 2.3.3`,
+`h5py 3.15.1` preinstalled. PyPI `allensdk==2.16.2` **does not
+install** on this image — its `numpy<1.24` pin forces pip to a 1.23.5
+sdist, which has no 3.12 wheel and fails to build from source. **Use
+the master branch instead**: `pip install git+https://github.com/AllenInstitute/AllenSDK.git`.
+This is what `notebooks/README.md` Cell 1 does.
+
 ## Things to verify on the very first Kaggle run
 
 These are the items I refused to guess at — they're easy to check in
