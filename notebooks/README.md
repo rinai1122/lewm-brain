@@ -30,10 +30,16 @@ Three cells:
 ```bash
 # Cell 1 — install allensdk from MASTER (PyPI 2.16.2 from Nov 2023
 # pins numpy<1.24, which has no Python-3.12 wheel — Kaggle ships 3.12).
-# Master drops that pin and supports 3.10-3.13 per its pyproject.toml.
-!pip install --prefer-binary git+https://github.com/AllenInstitute/AllenSDK.git
+# Master drops the numpy pin but its custom NWBFile subclass doesn't
+# implement `external_resources`, which is abstract in pynwb >= 2.6 /
+# hdmf 4+. Pin pynwb/hdmf to a known-good window in the same resolve.
+!pip install --prefer-binary "pynwb<2.6" "hdmf<3.5" \
+    git+https://github.com/AllenInstitute/AllenSDK.git
 !pip install git+https://github.com/rinai1122/lewm-brain.git
 ```
+
+**After running Cell 1, restart the kernel** (Run → Restart) so Python
+re-imports the now-downgraded `pynwb` / `hdmf`. Then run cells 2 and 3.
 
 ```python
 # Cell 2 — fetch the config from the repo (so we don't pin it twice).
