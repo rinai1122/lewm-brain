@@ -57,26 +57,30 @@ def vjepa2_extract_features(
           f"movie buffer {pixels_rgb.nbytes / 1e9:.2f} GB")
 
     model.eval().to(device)
-    use_amp = (device == "cuda")
+    model_dtype = next(model.parameters()).dtype
 
     feats = []
     with torch.no_grad():
         for i in range(0, n_clips, batch_size):
             j = min(i + batch_size, n_clips)
-            # List of (clip_frames, H, W, 3) array views — no copy.
             batch = [pixels_rgb[s * stride : s * stride + clip_frames]
                      for s in range(i, j)]
             inputs = processor(batch, return_tensors="pt")
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-            with torch.amp.autocast(device_type="cuda", dtype=torch.float16,
-                                    enabled=use_amp):
-                outputs = model(**inputs)
-                hidden = outputs.last_hidden_state  # (B, n_patches, D)
-                if pool == "mean":
-                    pooled = hidden.mean(dim=1)
-                else:
-                    raise ValueError(f"unknown pool {pool!r}")
+            inputs = {
+                k: (v.to(device, dtype=model_dtype)
+                    if torch.is_floating_point(v) else v.to(device))
+                for k, v in inputs.items()
+            }
+            outputs = model(**inputs)
+            hidden = outputs.last_hidden_state  # (B, n_patches, D)
+            if pool == "mean":
+                pooled = hidden.mean(dim=1)
+            else:
+                raise ValueError(f"unknown pool {pool!r}")
             feats.append(pooled.float().cpu().numpy())
+            del outputs, hidden, pooled, inputs
+            if device == "cuda":
+                torch.cuda.empty_cache()
             if (i // batch_size) % 50 == 0:
                 print(f"[features]   clip {i}/{n_clips}")
 
@@ -87,26 +91,43 @@ def load_vjepa2(
     hf_id: str,
     init: str = "pretrained",
     seed: int = 0,
-    dtype: str = "float32",
+    dtype: str = "float16",
 ):
     """Load (model, processor). `init='random'` returns a freshly-initialized
     model with the same architecture but no pretrained weights, for the
     Brain-Score-style noise-floor control.
+
+    Defaults to fp16 weights + SDPA attention to fit ViT-L 64-frame 256² on
+    a 16 GB T4. Eager attention materializes the full 8192×8192 attention
+    matrix per layer, which OOMs on T4.
     """
     import torch
     from transformers import AutoConfig, AutoModel, AutoVideoProcessor
 
-    torch_dtype = {"float32": torch.float32, "float16": torch.float16}[dtype]
+    torch_dtype = {"float32": torch.float32, "float16": torch.float16,
+                   "bfloat16": torch.bfloat16}[dtype]
     processor = AutoVideoProcessor.from_pretrained(hf_id)
+
+    common_kwargs = {"attn_implementation": "sdpa"}
 
     if init == "random":
         torch.manual_seed(seed)
         config = AutoConfig.from_pretrained(hf_id)
-        model = AutoModel.from_config(config)
+        try:
+            model = AutoModel.from_config(config, **common_kwargs)
+        except TypeError:
+            model = AutoModel.from_config(config)
         if torch_dtype != torch.float32:
             model = model.to(torch_dtype)
     elif init == "pretrained":
-        model = AutoModel.from_pretrained(hf_id, torch_dtype=torch_dtype)
+        try:
+            model = AutoModel.from_pretrained(
+                hf_id, dtype=torch_dtype, **common_kwargs,
+            )
+        except TypeError:
+            # Older transformers: `dtype` was `torch_dtype`, no
+            # `attn_implementation` kwarg on this model class.
+            model = AutoModel.from_pretrained(hf_id, torch_dtype=torch_dtype)
     else:
         raise ValueError(f"unknown init {init!r}")
 

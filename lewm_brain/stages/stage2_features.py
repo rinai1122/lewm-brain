@@ -41,7 +41,7 @@ def run(
     print(f"[stage2] loading {hf_id} (init={init})")
     import torch
     model, processor = features.load_vjepa2(
-        hf_id, init=init, seed=seed, dtype="float32",
+        hf_id, init=init, seed=seed, dtype="float16",
     )
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[stage2] device={device}, model dtype={next(model.parameters()).dtype}")
