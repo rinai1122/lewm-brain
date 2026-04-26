@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lewm_brain"
+version = "0.0.1"
+description = "JEPA vs baselines on mouse Neuropixels natural-movie responses"
+requires-python = ">=3.10"
+authors = [{ name = "Sungji Wang" }]
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.11",
+    "scikit-learn>=1.3",
+    "xarray>=2023.10",
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+allen = [
+    "allensdk>=2.16.2",
+    "h5py>=3.9",
+    "pynwb>=2.5",
+]
+torch = [
+    "torch>=2.1",
+    "transformers>=4.40",
+    "timm>=0.9",
+]
+
+[tool.setuptools.packages.find]
+include = ["lewm_brain*"]
+exclude = ["notebooks*", "configs*"]

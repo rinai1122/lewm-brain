@@ -77,7 +77,26 @@ for anything that needs torch or Allen data; debugging happens on
 Kaggle.
 
 ## Directory layout
-TBD — proposed in step 4 of the kickoff plan and pinned here once approved.
+See `pipeline.md` for the full proposal. Headline:
+
+```
+lewm-brain/
+├── CLAUDE.md / data_notes.md / pipeline.md / progress.md
+├── pyproject.toml / requirements-kaggle.txt
+├── lewm_brain/        # importable package — all real logic
+│   ├── config.py / allen_data.py / stimuli.py / features.py
+│   ├── encoding.py / straightening.py
+│   └── stages/        # one orchestrator per pipeline stage
+├── notebooks/         # 3-cell Kaggle shims (`pip install` + `stage.run(cfg)`)
+└── configs/           # YAML config consumed by every stage
+```
+
+## Research-design defaults (from `pipeline.md`, overridable in `configs/default.yaml`)
+1. **Held-out repeats** — last repeat as global test; LOO-repeat CV for ridge α.
+2. **Running speed / pupil** — included as additional regressors; not regressed-out.
+3. **Cortical-depth pooling** — pool within area (no layer stratification).
+4. **Sanity-check session** — deterministic: BO 1.1 + VISp + ≥1 higher area, max
+   good-units; tie-break low session_id.
 
 ## Constraints (load-bearing — read before scaling any analysis)
 

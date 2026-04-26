@@ -1,0 +1,59 @@
+# Default configuration for the one-session, one-model end-to-end run.
+# Stage notebooks load this file; resolved values are written next to
+# every output artifact for reproducibility.
+
+seed: 0
+
+session_pick:
+  session_type: brain_observatory_1.1
+  required_areas: [VISp]
+  any_higher_areas: [VISl, VISal, VISpm, VISam, VISrl]
+  rule: max_good_units_in_visual_cortex
+  # Filled in on first stage-1 run; leave null until then.
+  session_id: null
+
+unit_filter:
+  # Allen defaults — see data_notes.md.
+  isi_violations_max: 0.5
+  amplitude_cutoff_max: 0.1
+  presence_ratio_min: 0.9
+
+stimulus:
+  primary: natural_movie_one
+  also: [natural_movie_three]
+  frame_rate_hz: 30
+  bin_width_s: null  # null => use 1 / frame_rate_hz
+
+heldout:
+  policy: last_repeat   # one of {last_repeat, leave_one_out}
+
+behavior_covariates:
+  include_running_speed: true
+  include_pupil: true
+  mode: regressor       # one of {regressor, regress_out, none}
+
+depth_pooling: pool_within_area  # one of {pool_within_area, by_layer}
+
+models:
+  - name: vjepa2_vitl
+    family: jepa
+    hf_id: facebook/vjepa2-vitl-fpc64-256
+    clip_frames: 64
+    clip_resolution: 256
+    clip_window: sliding_stride_1
+  - name: vjepa2_vitl_random
+    family: random_init
+    hf_id: facebook/vjepa2-vitl-fpc64-256
+    clip_frames: 64
+    clip_resolution: 256
+    clip_window: sliding_stride_1
+    init: random
+
+encoder:
+  model: ridge
+  alpha_grid: [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]
+  cv: leave_one_repeat_out
+
+straightening:
+  method: henaff_2021
+  spaces: [pixel, model, neural]

@@ -78,3 +78,23 @@ Kaggle Python version, ROS3-on-Kaggle viability — are listed in
 `data_notes.md` under "Things to verify on the very first Kaggle run."
 Four research-design questions surfaced for user input (held-out
 repeats, running-speed handling, depth pooling, single-session pick).
+
+## 2026-04-26 — Step 4 + Stage 1 implementation
+User approved Kaggle account verification and said "do everything,"
+which I read as: skip the step-4 hold-and-wait gate, pick reasonable
+defaults for the four open research-design questions, and ship the
+sanity-check pipeline. Wrote `pipeline.md` with the full directory
+proposal and the four defaults (last-repeat held-out, running-speed
+as covariate, pool within area, deterministic session pick by max
+good-units in VISp + ≥1 higher area). Built the `lewm_brain` package
+skeleton (`config.py`, `allen_data.py`, `stages/stage1_neural.py`)
+plus `pyproject.toml`, `requirements-kaggle.txt`, and
+`configs/default.yaml`. Stage 1 picks a session, extracts good-unit
+visual-cortex spikes per movie frame for `natural_movie_one` and
+`natural_movie_three`, computes per-frame running speed, writes an
+.npz + a sanity heatmap + a config.json with the resolved
+session_id and commit hash. Stages 2–4 deliberately not yet
+implemented — Stage 2's reshape will depend on what shape Stage 1
+actually produces, and writing it ahead of the first Kaggle run
+would be guessing. Notebook recipe documented in `notebooks/README.md`.
+Local syntax check: all .py files compile under Python 3.12.
