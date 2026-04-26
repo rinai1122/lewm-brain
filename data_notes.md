@@ -73,15 +73,16 @@ Total assets, FC: 169 files / 375 GB. [DANDI:000022 metadata]
 ## Stimulus structure (natural movies)
 
 The natural-movie stimuli are clips edited from *Touch of Evil*
-(Welles 1958), as in the calcium Brain Observatory. We need to confirm
-exact properties on first run, but the standing convention I'll plan
-against is:
+(Welles 1958), as in the calcium Brain Observatory.
 
-- Frame rate: 30 fps. **`[VERIFY]`** via `session.stimulus_presentations`.
-- `natural_movie_one`: 30 s clip → **900 frames per repeat**. **`[VERIFY]`**
-- `natural_movie_three`: 120 s clip → **3600 frames per repeat**. **`[VERIFY]`**
-- Repeats per session: **`[VERIFY]`** — read off `repeat` column in the
-  presentations table; do not hardcode.
+**Verified on session 798911424 (BO 1.1) — 2026-04-26:**
+- Frame rate: **30 fps**.
+- `natural_movie_one`: **900 frames/repeat × 20 repeats** = 18 000 rows in
+  `intervals/natural_movie_one_presentations`.
+- `natural_movie_three`: **3600 frames/repeat × 10 repeats** = 36 000 rows
+  in `intervals/natural_movie_three_presentations`.
+- Repeats are not stored as a column; we derive them by counting `frame == 0`
+  occurrences in the presentation table sorted by `start_time`.
 
 Pulling the presentation table for one stimulus:
 

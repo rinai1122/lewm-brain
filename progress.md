@@ -79,6 +79,34 @@ Kaggle Python version, ROS3-on-Kaggle viability — are listed in
 Four research-design questions surfaced for user input (held-out
 repeats, running-speed handling, depth pooling, single-session pick).
 
+## 2026-04-26 — Stage 1 runs end-to-end on Kaggle ✓
+First successful end-to-end Kaggle run on session **798911424** (BO 1.1):
+- 477 good visual-cortex units passing the default filter.
+- Per-area: VISp 100, VISl 78, VISal 98, VISpm 0, VISam 149, VISrl 52.
+- `natural_movie_one`: responses (20, 900, 477), running (20, 900).
+- `natural_movie_three`: responses (10, 3600, 477), running (10, 3600).
+- NWB ready in 146.5 s (download + open).
+
+What it took to get here (so future-me doesn't repeat the fight):
+1. PyPI `allensdk==2.16.2` (Nov 2023) pins `numpy<1.24` → fails to build on
+   Kaggle's Py3.12.
+2. AllenSDK `master` branch pins `pynwb<2.6` and `hdmf<3.5`, which transitively
+   pull `numpy<1.24` → same failure under standard `pip install`.
+3. The actual install that works: pre-install modern `pynwb>=2.8,<3` /
+   `hdmf>=3.14,<5` plus AllenSDK's other runtime deps explicitly, then
+   `pip install --no-deps git+…/AllenSDK.git`. The `--no-deps` skips
+   AllenSDK's old version pins entirely.
+4. AllenSDK's pynwb-based session loader still trips on the
+   `NWBFile.external_resources` abstract-method mismatch — bypassed by
+   monkey-patching `EcephysSession.__init__` to force `test=False` and
+   reading the NWB file directly with `h5py`.
+
+Verified shapes folded into `data_notes.md`. Notebook recipe in
+`notebooks/README.md` updated to the working install. Next: publish the
+output as a Kaggle Dataset (`lewm-brain-stage1`) so Stage 2 can mount it,
+then write Stage 2 (V-JEPA-2 ViT-L feature extraction) against the
+verified per-frame timing.
+
 ## 2026-04-26 — Step 4 + Stage 1 implementation
 User approved Kaggle account verification and said "do everything,"
 which I read as: skip the step-4 hold-and-wait gate, pick reasonable
