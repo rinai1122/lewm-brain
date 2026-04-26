@@ -28,9 +28,11 @@ Create a new notebook on Kaggle. **Settings:**
 Three cells:
 
 ```bash
-# Cell 1 — install the package + Allen deps from the requirements file.
-!pip install -q git+https://github.com/rinai1122/lewm-brain.git
-!pip install -q -r https://raw.githubusercontent.com/rinai1122/lewm-brain/main/requirements-kaggle.txt
+# Cell 1 — install allensdk (heaviest dep) first with --prefer-binary
+# so pip doesn't try to build C extensions from source on the Kaggle
+# image. Then install the lewm_brain package itself.
+!pip install --prefer-binary allensdk
+!pip install git+https://github.com/rinai1122/lewm-brain.git
 ```
 
 ```python

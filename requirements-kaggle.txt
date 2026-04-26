@@ -1,13 +1,7 @@
-# Pins that supplement the Kaggle base image. The base image already
-# ships torch, numpy, pandas, scikit-learn, xarray, matplotlib at
-# recent enough versions to satisfy lewm_brain. We add only what's
-# missing or Allen-specific.
-allensdk==2.16.2
-pynwb>=2.5,<3.0
-h5py>=3.9,<4.0
-
-# Pinned for V-JEPA-2 inference. Tested model id:
-#   facebook/vjepa2-vitl-fpc64-256
-# transformers >= 4.45 is when V-JEPA-2 landed in the library. If
-# Kaggle's base image already has a newer transformers, this is a no-op.
-transformers>=4.45
+# Pure additions on top of the Kaggle base image. The base image already
+# ships torch, transformers, numpy, pandas, scikit-learn, xarray,
+# matplotlib at recent versions. Allen is the only thing missing.
+#
+# We deliberately do NOT pin pynwb / hdmf / h5py here — let allensdk's
+# own dep solver pick versions that match its release.
+allensdk
