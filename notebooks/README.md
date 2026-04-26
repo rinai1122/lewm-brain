@@ -28,12 +28,15 @@ Create a new notebook on Kaggle. **Settings:**
 Three cells:
 
 ```bash
-# Cell 1 — install allensdk from MASTER (PyPI 2.16.2 from Nov 2023
-# pins numpy<1.24, which has no Python-3.12 wheel — Kaggle ships 3.12).
-# We don't need to pin pynwb/hdmf: lewm_brain monkey-patches AllenSDK
-# to skip the broken pynwb-based session validator and reads the NWB
-# file directly with h5py.
-!pip install --prefer-binary git+https://github.com/AllenInstitute/AllenSDK.git
+# Cell 1 — install AllenSDK with --no-deps to bypass its numpy<1.24
+# pin (which has no Python-3.12 wheel). Pre-install only the runtime
+# deps the cache code actually touches, at versions compatible with
+# Kaggle's Py3.12 + numpy 2.x.
+!pip install --prefer-binary \
+    'pynwb>=2.8,<3' 'hdmf>=3.14,<5' \
+    argschema simplejson marshmallow requests-toolbelt tqdm semver \
+    ndx-events cachetools nest_asyncio sqlalchemy jinja2
+!pip install --no-deps --prefer-binary git+https://github.com/AllenInstitute/AllenSDK.git
 !pip install git+https://github.com/rinai1122/lewm-brain.git
 ```
 
