@@ -81,27 +81,29 @@ def run(cfg: Config, out_root: Path | None = None) -> Path:
     out_dir = out_root / str(session_id)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 3. Load session, get good visual-cortex units.
+    # 3. Download session NWB (via our monkey-patched cache so AllenSDK
+    # doesn't auto-delete on read-failure), then read it directly with h5py.
     t0 = time.time()
-    session = allen_data.load_session(cache, session_id)
-    unit_ids, unit_meta = allen_data.good_unit_ids_in_visual_cortex(session, cfg)
-    print(f"[stage1] loaded session in {time.time() - t0:.1f}s; "
-          f"{len(unit_ids)} good visual-cortex units")
+    nwb_path = allen_data.get_session_nwb_path(cache, session_id)
+    print(f"[stage1] NWB ready in {time.time() - t0:.1f}s at {nwb_path}")
+
+    unit_ids, unit_meta = allen_data.good_unit_ids_in_visual_cortex(nwb_path, cfg)
+    print(f"[stage1] {len(unit_ids)} good visual-cortex units")
     per_area = allen_data.per_area_unit_counts(unit_meta)
     print(f"[stage1] per-area counts: {per_area}")
 
     unit_meta_csv = out_dir / "unit_meta.csv"
     unit_meta.to_csv(unit_meta_csv)
 
-    # 4. Per-stimulus binning + running speed.
+    # 4. Per-stimulus binning + running speed (h5py-direct).
     stims = [cfg.raw["stimulus"]["primary"]] + list(cfg.raw["stimulus"]["also"])
     summary = {}
     for stim in stims:
         try:
             responses, pres_sorted = allen_data.bin_responses_per_frame(
-                session, stim, unit_ids, cfg,
+                nwb_path, stim, unit_ids, cfg,
             )
-            running = allen_data.running_speed_per_frame(session, pres_sorted, cfg)
+            running = allen_data.running_speed_per_frame(nwb_path, pres_sorted, cfg)
         except Exception as exc:
             # FC sessions don't have natural_movie_three; log and skip.
             print(f"[stage1] skipping {stim}: {exc}")
