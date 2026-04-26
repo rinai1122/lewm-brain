@@ -8,22 +8,16 @@ from typing import Any
 import numpy as np
 
 
-def _build_clips(pixels: np.ndarray, clip_frames: int, stride: int = 1) -> np.ndarray:
-    """Sliding-window clips from (T, H, W) -> (n_clips, clip_frames, H, W)."""
-    T = pixels.shape[0]
-    if T < clip_frames:
-        raise ValueError(f"Movie too short ({T}) for clip size {clip_frames}.")
-    starts = np.arange(0, T - clip_frames + 1, stride)
-    return np.stack([pixels[s:s + clip_frames] for s in starts], axis=0)
-
-
-def _to_rgb_uint8(clips: np.ndarray) -> np.ndarray:
-    """(N, T, H, W) grayscale uint8 -> (N, T, H, W, 3) uint8."""
-    if clips.ndim == 4:
-        return np.repeat(clips[..., None], 3, axis=-1).astype(np.uint8, copy=False)
-    if clips.ndim == 5 and clips.shape[-1] == 3:
-        return clips.astype(np.uint8, copy=False)
-    raise ValueError(f"unexpected clip shape {clips.shape}")
+def _ensure_rgb_uint8(pixels: np.ndarray) -> np.ndarray:
+    """(T, H, W) grayscale uint8 -> (T, H, W, 3) uint8. (T, H, W, 3) passes
+    through. We expand grayscale once on the full movie (cheap: ~1 GB for a
+    3600-frame, 304-px movie) instead of materializing every overlapping
+    clip up front (was ~60 GB for natural_movie_three at stride 1)."""
+    if pixels.ndim == 3:
+        return np.repeat(pixels[..., None], 3, axis=-1).astype(np.uint8, copy=False)
+    if pixels.ndim == 4 and pixels.shape[-1] == 3:
+        return pixels.astype(np.uint8, copy=False)
+    raise ValueError(f"unexpected pixel shape {pixels.shape}")
 
 
 def vjepa2_extract_features(
@@ -45,29 +39,43 @@ def vjepa2_extract_features(
     we assign its feature to frame `k + clip_frames - 1` (the last frame of
     the clip). The first `clip_frames - 1` frames have no feature and are
     skipped by the encoder.
+
+    Clips are built lazily inside the batch loop — never materialized
+    upfront — so memory stays bounded at one (T, H, W, 3) movie copy plus
+    one batch of clips.
     """
     import torch
 
-    clips = _build_clips(pixels, clip_frames, stride)
-    clips = _to_rgb_uint8(clips)
-    n_clips = clips.shape[0]
+    T = pixels.shape[0]
+    if T < clip_frames:
+        raise ValueError(f"Movie too short ({T}) for clip size {clip_frames}.")
+    n_clips = (T - clip_frames) // stride + 1
+
+    pixels_rgb = _ensure_rgb_uint8(pixels)  # (T, H, W, 3) uint8 — single copy
     print(f"[features] {n_clips} clips of {clip_frames} frames "
-          f"({pixels.shape[0]} movie frames, stride {stride})")
+          f"({T} movie frames, stride {stride}); "
+          f"movie buffer {pixels_rgb.nbytes / 1e9:.2f} GB")
 
     model.eval().to(device)
+    use_amp = (device == "cuda")
 
     feats = []
     with torch.no_grad():
         for i in range(0, n_clips, batch_size):
-            batch = list(clips[i:i + batch_size])  # list of (T, H, W, 3) np arrays
+            j = min(i + batch_size, n_clips)
+            # List of (clip_frames, H, W, 3) array views — no copy.
+            batch = [pixels_rgb[s * stride : s * stride + clip_frames]
+                     for s in range(i, j)]
             inputs = processor(batch, return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
-            outputs = model(**inputs)
-            hidden = outputs.last_hidden_state  # (B, n_patches, D)
-            if pool == "mean":
-                pooled = hidden.mean(dim=1)
-            else:
-                raise ValueError(f"unknown pool {pool!r}")
+            with torch.amp.autocast(device_type="cuda", dtype=torch.float16,
+                                    enabled=use_amp):
+                outputs = model(**inputs)
+                hidden = outputs.last_hidden_state  # (B, n_patches, D)
+                if pool == "mean":
+                    pooled = hidden.mean(dim=1)
+                else:
+                    raise ValueError(f"unknown pool {pool!r}")
             feats.append(pooled.float().cpu().numpy())
             if (i // batch_size) % 50 == 0:
                 print(f"[features]   clip {i}/{n_clips}")
