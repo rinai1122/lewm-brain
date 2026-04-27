@@ -29,6 +29,10 @@ stage2:
   dataset_title: lewm-brain stage 2 (V-JEPA-2 features)
 stage2_batch_size: 4
 
+stage3:
+  dataset_id: rinai1122/lewm-brain-stage3
+  dataset_title: lewm-brain stage 3 (ridge encoder)
+
 heldout:
   policy: last_repeat   # one of {last_repeat, leave_one_out}
 
