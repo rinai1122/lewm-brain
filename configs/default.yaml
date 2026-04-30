@@ -24,13 +24,17 @@ stimulus:
   frame_rate_hz: 30
   bin_width_s: null  # null => use 1 / frame_rate_hz
 
+stage1:
+  dataset_id: sungjiwang/lewm-brain-stage1
+  dataset_title: lewm-brain stage 1 (Allen neural responses)
+
 stage2:
-  dataset_id: rinai1122/lewm-brain-stage2
+  dataset_id: sungjiwang/lewm-brain-stage2
   dataset_title: lewm-brain stage 2 (V-JEPA-2 features)
 stage2_batch_size: 4
 
 stage3:
-  dataset_id: rinai1122/lewm-brain-stage3
+  dataset_id: sungjiwang/lewm-brain-stage3
   dataset_title: lewm-brain stage 3 (ridge encoder)
 
 heldout:

@@ -10,6 +10,23 @@ import subprocess
 from pathlib import Path
 
 
+# kaggle CLI 2.0.0 has a habit of returning exit code 0 even when it prints
+# "Dataset creation error: Invalid Owner Id" (or similar) to stdout. Treat
+# those as failures so we don't claim success on a no-op upload.
+_ERROR_MARKERS = (
+    "dataset creation error",
+    "dataset version error",
+    "invalid owner id",
+    "403 - forbidden",
+    "404 - not found",
+)
+
+
+def _looks_like_error(text: str) -> bool:
+    lower = text.lower()
+    return any(m in lower for m in _ERROR_MARKERS)
+
+
 def publish_to_kaggle_dataset(
     out_dir: Path,
     dataset_id: str,
@@ -47,24 +64,36 @@ def publish_to_kaggle_dataset(
          "-p", str(upload_dir), "--dir-mode", "zip"],
         capture_output=True, text=True,
     )
-    if create.returncode == 0:
+    create_blob = create.stdout + "\n" + create.stderr
+    if create.returncode == 0 and not _looks_like_error(create_blob):
         print(f"[upload] created Kaggle Dataset {dataset_id}")
         return True
 
-    blob = (create.stdout + "\n" + create.stderr).lower()
-    if "already exists" in blob or "already used" in blob:
+    lower = create_blob.lower()
+    if "already exists" in lower or "already used" in lower:
         version = subprocess.run(
             ["kaggle", "datasets", "version",
              "-p", str(upload_dir),
-             "-m", "stage2 features auto-snapshot",
+             "-m", f"{dataset_id} auto-snapshot",
              "--dir-mode", "zip"],
             capture_output=True, text=True,
         )
-        if version.returncode == 0:
+        version_blob = version.stdout + "\n" + version.stderr
+        if version.returncode == 0 and not _looks_like_error(version_blob):
             print(f"[upload] versioned Kaggle Dataset {dataset_id}")
             return True
-        print(f"[upload] version failed: {version.stderr}")
+        print(
+            f"[upload] version FAILED for {dataset_id} "
+            f"(returncode={version.returncode})\n"
+            f"--- stdout ---\n{version.stdout}\n"
+            f"--- stderr ---\n{version.stderr}"
+        )
         return False
 
-    print(f"[upload] create failed: {create.stderr}")
+    print(
+        f"[upload] create FAILED for {dataset_id} "
+        f"(returncode={create.returncode})\n"
+        f"--- stdout ---\n{create.stdout}\n"
+        f"--- stderr ---\n{create.stderr}"
+    )
     return False

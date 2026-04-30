@@ -126,3 +126,28 @@ implemented — Stage 2's reshape will depend on what shape Stage 1
 actually produces, and writing it ahead of the first Kaggle run
 would be guessing. Notebook recipe documented in `notebooks/README.md`.
 Local syntax check: all .py files compile under Python 3.12.
+
+## 2026-04-30 — Kaggle Dataset uploads were silently failing for weeks
+User couldn't find `lewm-brain-stage2` on Kaggle despite the
+`[upload] created Kaggle Dataset rinai1122/lewm-brain-stage2`
+success message at the end of every Stage 2 run. Diagnosis: the kaggle CLI
+2.0.0 was returning **exit code 0 while printing
+`Dataset creation error: Invalid Owner Id` to stdout**, and
+`kaggle_io.publish_to_kaggle_dataset` only inspected returncode. Two
+upstream causes: (1) a previous session plugged in `rinai1122` (the user's
+GitHub handle) as the Kaggle owner — the actual Kaggle username is
+`sungjiwang`; (2) Stage 1 had no auto-publish hook at all, so even with
+the right owner it would never have appeared. Fixes:
+- `configs/default.yaml`: dataset_id slugs flipped to `sungjiwang/...`;
+  added a `stage1.dataset_id` block.
+- `lewm_brain/kaggle_io.py`: scan stdout/stderr for `Dataset creation
+  error`, `Invalid Owner Id`, etc., even on returncode 0; print full
+  stdout/stderr on every failure path so future regressions are visible.
+- `lewm_brain/stages/stage1_neural.py`: mirror Stage 2's per-stim
+  `kaggle_io.publish_to_kaggle_dataset` call so Stage 1 outputs are durable
+  on Kaggle.
+Effect: no Stage 1 / Stage 2 dataset has ever existed under `sungjiwang`
+on Kaggle, so the user needs to re-run Stage 1 (CPU, ~3 min) and
+re-publish Stage 2 (either manually from the existing Stage 2 notebook's
+saved output with the corrected owner, or by re-running Stage 2) before
+Stage 3 can find its inputs.

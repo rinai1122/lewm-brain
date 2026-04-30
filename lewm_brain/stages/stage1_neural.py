@@ -18,7 +18,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .. import allen_data
+from .. import allen_data, kaggle_io
 from ..config import KAGGLE_WORKING, Config, write_artifact_manifest
 
 
@@ -131,6 +131,20 @@ def run(cfg: Config, out_root: Path | None = None) -> Path:
                 out_dir / "sanity.png",
                 stim, responses, unit_meta, per_area,
             )
+
+        # Snapshot to Kaggle Dataset right after each stim writes — so a
+        # later kernel crash can't lose what we already extracted.
+        s1 = cfg.raw.get("stage1") or {}
+        ds_id = s1.get("dataset_id")
+        if ds_id:
+            ds_title = s1.get(
+                "dataset_title",
+                f"lewm-brain stage 1 (session {session_id})",
+            )
+            try:
+                kaggle_io.publish_to_kaggle_dataset(out_dir, ds_id, ds_title)
+            except Exception as exc:
+                print(f"[stage1] WARN auto-publish raised: {exc!r}")
 
     write_artifact_manifest(
         out_dir, cfg,
