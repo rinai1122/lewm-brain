@@ -151,3 +151,70 @@ on Kaggle, so the user needs to re-run Stage 1 (CPU, ~3 min) and
 re-publish Stage 2 (either manually from the existing Stage 2 notebook's
 saved output with the corrected owner, or by re-running Stage 2) before
 Stage 3 can find its inputs.
+
+## 2026-05-01 — Stage 1+2 datasets live on Kaggle, Stage 3 instructions added
+User confirmed `sungjiwang/lewm-brain-stage1` and
+`sungjiwang/lewm-brain-stage2` are now both published — no slug change
+from what the codebase already pinned. Added a Stage 3 section to
+`notebooks/README.md` with the 3-cell shim, the "add Inputs:
+lewm-brain-stage1 + lewm-brain-stage2" reminder, and the note that
+Stage 3 auto-publishes to `sungjiwang/lewm-brain-stage3`. Next: run the
+Stage 3 notebook on Kaggle.
+
+## 2026-05-01 — final-block mean-pool can't separate pretrained from random
+Ran Stage 2 random-init control + Stage 3 against it. Pretrained r mean
+0.186 / median 0.166; random-init r mean 0.186 / median 0.168. Per-area
+patterns within 0.005 of each other. Verified random init is genuinely
+random (no `model.safetensors` downloaded; std of features 0.8 vs
+pretrained 1.8). Diagnosed root cause via direct comparison of the two
+feature `.npz` files: per-feature corr mean 0.000 (rotation-different)
+but **CKA = 0.795**, i.e. ~80 % of the pairwise clip-similarity
+structure is shared between pretrained and random. Cause: mean-pooling
+the final block over all 8192 tokens (16×16 patches × 32 tubelet
+steps) collapses the representation to roughly bulk pixel statistics,
+which random projections preserve via Johnson-Lindenstrauss. Fix:
+extract features from a **mid-network layer** instead (block 16 of 24,
+Brain-Score-style — Schrimpf et al. 2018 §3 reports best-layer per
+neuron, mid-network usually wins). Patches:
+
+- `features.vjepa2_extract_features` now takes `layer_index` (None =
+  last block; int = `outputs.hidden_states[k]`).
+- `configs/default.yaml`: each model entry pins `layer_index: 16` plus
+  its own `dataset_id`/`dataset_title`. Pretrained → `lewm-brain-stage2-l16`,
+  random → `lewm-brain-stage2-l16-random`. Old `lewm-brain-stage2{,-random}`
+  remain on Kaggle as the failing-baseline artifacts.
+- `kaggle_io._looks_like_error` now treats "is already in use" as the
+  title-collision form of "already exists" so versioning kicks in.
+  Earlier this swallowed two Stage 2/3 publish failures silently.
+
+Sanity-check methodology was *not* the problem — simulated the exact
+837×1024-feature, 19-vs-1-repeat-split eval with informative vs
+random features at the matched 0.31 reliability and got 0.163 vs 0.122
+(Δ 0.04). The eval can discriminate; the features being mean-pooled
+final-block could not.
+
+## 2026-05-01 — Stage 3 ran end-to-end on V-JEPA-2 ViT-L (pretrained) ✓
+Single-session sanity-check of the ridge encoder, session 798911424,
+`natural_movie_one`, 477 good visual-cortex units. Last repeat held
+out as test; ridge α picked from `{0.01…1e4}` per neuron.
+
+- Inputs: responses (20, 900, 477), features (837, 1024), align gap = 63.
+- Per-unit Pearson r on held-out repeat: mean **0.186**, median 0.166.
+- Split-half reliability (noise ceiling): mean **0.312** → ~60 % of
+  explainable variance captured.
+- Per-area mean r: VISp **0.217** (highest, as expected for V1),
+  VISal 0.202, VISam 0.177, VISl 0.167, VISrl 0.155.
+- Output published to `sungjiwang/lewm-brain-stage3`.
+
+Note for future re-runs: on this notebook the input datasets mounted
+at `/kaggle/input/datasets/sungjiwang/lewm-brain-stage{1,2}/`, NOT the
+default `/kaggle/input/lewm-brain-stage{1,2}/` — `stage3_encoder.run()`
+was called with explicit `stage1_root` / `stage2_root` overrides. If
+this turns out to be how Kaggle mounts inputs in this account, fold
+the deeper path into the defaults instead of overriding every time.
+
+Next: random-init noise floor — re-run Stage 2 with `model_index=1`
+(produces `vjepa2_vitl_random/features__natural_movie_one.npz`),
+re-publish to `lewm-brain-stage2` (will create v2), then re-run
+Stage 3 with `model_name="vjepa2_vitl_random"`. Then Stage 4
+(straightening).

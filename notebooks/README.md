@@ -137,3 +137,55 @@ stage2_features.run(cfg, model_index=1)  # random-init control
 
 This produces `vjepa2_vitl_random/features__{stim}.npz` — the
 noise-floor control needed for the encoding-model comparison.
+
+## Stage 3 — Ridge encoding model
+
+Fits a per-neuron ridge regression from V-JEPA-2 features to neural
+responses, scores it on the held-out repeat, and computes split-half
+reliability as the noise ceiling. Pure CPU + numpy/scipy linear algebra,
+no GPU needed.
+
+Create a new Kaggle notebook. **Settings:**
+
+- Accelerator: **None**.
+- Internet: **On** (only needed for the `pip install` from GitHub).
+- Persistence: **Files only**.
+- Environment: **Always use latest**.
+- **Add Inputs**: `sungjiwang/lewm-brain-stage1` and
+  `sungjiwang/lewm-brain-stage2`. They mount at
+  `/kaggle/input/lewm-brain-stage1` and `/kaggle/input/lewm-brain-stage2`,
+  which matches the defaults in `stage3_encoder.run()`.
+
+Three cells:
+
+```bash
+# Cell 1 — minimal install. No AllenSDK, no transformers needed for
+# stage 3; we only read npz/csv from the mounted datasets.
+!pip install git+https://github.com/rinai1122/lewm-brain.git
+```
+
+Restart the kernel after Cell 1 (Run → Restart).
+
+```python
+# Cell 2 — fetch config (same as earlier stages).
+import urllib.request, pathlib
+pathlib.Path("/kaggle/working/configs").mkdir(parents=True, exist_ok=True)
+urllib.request.urlretrieve(
+    "https://raw.githubusercontent.com/rinai1122/lewm-brain/main/configs/default.yaml",
+    "/kaggle/working/configs/default.yaml",
+)
+```
+
+```python
+# Cell 3 — run stage 3 against the pretrained V-JEPA-2 ViT-L features.
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage3_encoder
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage3_encoder.run(cfg, model_name="vjepa2_vitl")
+```
+
+Outputs land at `/kaggle/working/stage3/vjepa2_vitl/` and auto-publish
+to `sungjiwang/lewm-brain-stage3`. Re-run with
+`model_name="vjepa2_vitl_random"`
+once the random-init Stage 2 features are also published, to get the
+noise-floor control.

@@ -69,8 +69,16 @@ def publish_to_kaggle_dataset(
         print(f"[upload] created Kaggle Dataset {dataset_id}")
         return True
 
+    # Kaggle CLI 2.0.x reports the "this dataset already exists" condition
+    # via three different strings depending on whether the slug, the title,
+    # or the URL collides. "is already in use" is the title-collision form.
     lower = create_blob.lower()
-    if "already exists" in lower or "already used" in lower:
+    already_exists = (
+        "already exists" in lower
+        or "already used" in lower
+        or "is already in use" in lower
+    )
+    if already_exists:
         version = subprocess.run(
             ["kaggle", "datasets", "version",
              "-p", str(upload_dir),

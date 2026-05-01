@@ -29,6 +29,7 @@ stage1:
   dataset_title: lewm-brain stage 1 (Allen neural responses)
 
 stage2:
+  # Default slug used if a model entry doesn't pin its own dataset_id.
   dataset_id: sungjiwang/lewm-brain-stage2
   dataset_title: lewm-brain stage 2 (V-JEPA-2 features)
 stage2_batch_size: 4
@@ -54,6 +55,11 @@ models:
     clip_frames: 64
     clip_resolution: 256
     clip_window: sliding_stride_1
+    # Block 16 of 24 — Brain-Score-style mid-network features. Final-block
+    # mean-pool produced CKA 0.80 vs random init, so we sample earlier.
+    layer_index: 16
+    dataset_id: sungjiwang/lewm-brain-stage2-l16
+    dataset_title: lewm-brain stage 2 (V-JEPA-2 ViT-L pretrained, layer 16)
   - name: vjepa2_vitl_random
     family: random_init
     hf_id: facebook/vjepa2-vitl-fpc64-256
@@ -61,6 +67,9 @@ models:
     clip_resolution: 256
     clip_window: sliding_stride_1
     init: random
+    layer_index: 16
+    dataset_id: sungjiwang/lewm-brain-stage2-l16-random
+    dataset_title: lewm-brain stage 2 (V-JEPA-2 ViT-L random init, layer 16)
 
 encoder:
   model: ridge

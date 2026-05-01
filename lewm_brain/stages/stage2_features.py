@@ -32,13 +32,16 @@ def run(
     hf_id = model_cfg["hf_id"]
     clip_frames = int(model_cfg["clip_frames"])
     init = model_cfg.get("init", "pretrained")
+    layer_index = model_cfg.get("layer_index")
+    if layer_index is not None:
+        layer_index = int(layer_index)
     seed = int(cfg.raw.get("seed", 0))
 
     out_dir = out_root / model_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Model + processor.
-    print(f"[stage2] loading {hf_id} (init={init})")
+    print(f"[stage2] loading {hf_id} (init={init}, layer={layer_index})")
     import torch
     model, processor = features.load_vjepa2(
         hf_id, init=init, seed=seed, dtype="float16",
@@ -66,6 +69,7 @@ def run(
             batch_size=int(cfg.raw.get("stage2_batch_size", 1)),
             device=device,
             pool="mean",
+            layer_index=layer_index,
         )
         elapsed = time.time() - t0
         print(f"[stage2] {stim}: features {feats.shape} in {elapsed:.1f}s "
@@ -86,11 +90,17 @@ def run(
         }
 
         # Snapshot to Kaggle Dataset right after each stim writes — so a
-        # later kernel crash can't lose what we already extracted.
+        # later kernel crash can't lose what we already extracted. Per-model
+        # dataset_id wins if set, so pretrained and random-init never share
+        # a dataset (would clobber identical filenames on version upload).
         s2 = cfg.raw.get("stage2") or {}
-        ds_id = s2.get("dataset_id")
+        ds_id = model_cfg.get("dataset_id") or s2.get("dataset_id")
         if ds_id:
-            ds_title = s2.get("dataset_title", f"lewm-brain {model_name}")
+            ds_title = (
+                model_cfg.get("dataset_title")
+                or s2.get("dataset_title")
+                or f"lewm-brain {model_name}"
+            )
             try:
                 kaggle_io.publish_to_kaggle_dataset(out_dir, ds_id, ds_title)
             except Exception as exc:
@@ -103,6 +113,7 @@ def run(
             "model_name": model_name,
             "hf_id": hf_id,
             "init": init,
+            "layer_index": layer_index,
             "clip_frames": clip_frames,
             "stride": 1,
             "stimuli_summary": summary,

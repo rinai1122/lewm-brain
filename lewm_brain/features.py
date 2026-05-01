@@ -29,11 +29,22 @@ def vjepa2_extract_features(
     batch_size: int = 4,
     device: str = "cuda",
     pool: str = "mean",
+    layer_index: int | None = None,
 ) -> np.ndarray:
     """Extract per-clip features from V-JEPA-2.
 
     pixels: (T, H, W) uint8 grayscale OR (T, H, W, 3) uint8 RGB.
     Returns: (n_clips, hidden_size) float32 array.
+
+    `layer_index` selects which transformer block's output to pool. None
+    (the default) pulls `last_hidden_state`. An int `k` pulls
+    `outputs.hidden_states[k]`, where index 0 is post-embedding and index
+    `num_hidden_layers` is the final block. Mid-network features (≈ 2/3
+    depth, e.g. block 16 of 24 for ViT-L) are what Brain-Score-style
+    encoding uses, since the final block + global mean-pool washes out
+    the structure that distinguishes a pretrained network from a random
+    one (verified empirically: CKA(pretrained, random) ≈ 0.80 at the
+    final-block mean-pool level).
 
     Per-frame assignment downstream: clip k spans pixels[k : k+clip_frames];
     we assign its feature to frame `k + clip_frames - 1` (the last frame of
@@ -54,7 +65,8 @@ def vjepa2_extract_features(
     pixels_rgb = _ensure_rgb_uint8(pixels)  # (T, H, W, 3) uint8 — single copy
     print(f"[features] {n_clips} clips of {clip_frames} frames "
           f"({T} movie frames, stride {stride}); "
-          f"movie buffer {pixels_rgb.nbytes / 1e9:.2f} GB")
+          f"movie buffer {pixels_rgb.nbytes / 1e9:.2f} GB; "
+          f"layer={'last' if layer_index is None else layer_index}")
 
     model.eval().to(device)
     model_dtype = next(model.parameters()).dtype
@@ -71,8 +83,12 @@ def vjepa2_extract_features(
                     if torch.is_floating_point(v) else v.to(device))
                 for k, v in inputs.items()
             }
-            outputs = model(**inputs)
-            hidden = outputs.last_hidden_state  # (B, n_patches, D)
+            if layer_index is None:
+                outputs = model(**inputs)
+                hidden = outputs.last_hidden_state  # (B, n_tokens, D)
+            else:
+                outputs = model(**inputs, output_hidden_states=True)
+                hidden = outputs.hidden_states[layer_index]
             if pool == "mean":
                 pooled = hidden.mean(dim=1)
             else:
