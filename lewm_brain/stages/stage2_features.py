@@ -35,6 +35,8 @@ def run(
     layer_index = model_cfg.get("layer_index")
     if layer_index is not None:
         layer_index = int(layer_index)
+    pool = str(model_cfg.get("pool", "mean"))
+    tubelet_size = int(model_cfg.get("tubelet_size", 2))
     seed = int(cfg.raw.get("seed", 0))
 
     out_dir = out_root / model_name
@@ -68,8 +70,9 @@ def run(
             stride=1,
             batch_size=int(cfg.raw.get("stage2_batch_size", 1)),
             device=device,
-            pool="mean",
+            pool=pool,
             layer_index=layer_index,
+            tubelet_size=tubelet_size,
         )
         elapsed = time.time() - t0
         print(f"[stage2] {stim}: features {feats.shape} in {elapsed:.1f}s "
@@ -114,6 +117,8 @@ def run(
             "hf_id": hf_id,
             "init": init,
             "layer_index": layer_index,
+            "pool": pool,
+            "tubelet_size": tubelet_size,
             "clip_frames": clip_frames,
             "stride": 1,
             "stimuli_summary": summary,

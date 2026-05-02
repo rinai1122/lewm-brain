@@ -37,6 +37,12 @@ stage2_batch_size: 4
 stage3:
   dataset_id: sungjiwang/lewm-brain-stage3
   dataset_title: lewm-brain stage 3 (ridge encoder)
+  # Clip-based holdout (Schrimpf 2018 §2.3). Last test_frac of clips is
+  # the test set; gap of split_gap_clips clips between train and test
+  # guarantees no input-pixel overlap (sliding stride-1 means each clip
+  # overlaps clip_frames-1 with its neighbor).
+  test_frac: 0.20
+  split_gap_clips: 64
 
 heldout:
   policy: last_repeat   # one of {last_repeat, leave_one_out}
@@ -55,12 +61,15 @@ models:
     clip_frames: 64
     clip_resolution: 256
     clip_window: sliding_stride_1
-    # Block 16 of 24 — Brain-Score-style mid-network features. Final-block
-    # mean-pool produced CKA 0.80 vs random init, so we sample earlier.
+    # Block 16 of 24, last-tubelet spatial mean (256 tokens of 8192).
+    # Global mean-pool gave CKA(pre, rand) ≈ 0.80, so we drop the
+    # temporal axis from the pool to keep end-of-clip semantics.
     layer_index: 16
-    dataset_id: sungjiwang/lewm-brain-stage2-l16
+    pool: last_tubelet
+    tubelet_size: 2
+    dataset_id: sungjiwang/lewm-brain-stage2-l16-tt
     # Kaggle dataset titles are capped at 50 chars; keep this short.
-    dataset_title: lewm-brain stage 2 L16 pretrained
+    dataset_title: lewm-brain stage 2 L16 TT pretrained
   - name: vjepa2_vitl_random
     family: random_init
     hf_id: facebook/vjepa2-vitl-fpc64-256
@@ -69,8 +78,10 @@ models:
     clip_window: sliding_stride_1
     init: random
     layer_index: 16
-    dataset_id: sungjiwang/lewm-brain-stage2-l16-random
-    dataset_title: lewm-brain stage 2 L16 random init
+    pool: last_tubelet
+    tubelet_size: 2
+    dataset_id: sungjiwang/lewm-brain-stage2-l16-tt-rand
+    dataset_title: lewm-brain stage 2 L16 TT random init
 
 encoder:
   model: ridge

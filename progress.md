@@ -161,6 +161,40 @@ lewm-brain-stage1 + lewm-brain-stage2" reminder, and the note that
 Stage 3 auto-publishes to `sungjiwang/lewm-brain-stage3`. Next: run the
 Stage 3 notebook on Kaggle.
 
+## 2026-05-02 — layer 16 didn't separate either; full diagnosis + dual fix
+Stage 3 with mid-network (block 16) features still gave pretrained
+0.188 vs random 0.187, per-area patterns within 0.005 again. So layer
+choice was not the issue — *global mean-pool itself* is. By CLT, the
+mean of 8192 random projections converges to ≈ the mean of 8192
+learned projections at any depth. Compounding it: the held-out-repeat
+test split is also weak, because sliding stride-1 means adjacent
+clips share 63/64 of their input, so ridge can predict via temporal
+smoothing of `Y_train.mean()` without needing feature semantics.
+Schrimpf 2018 §2.3 actually splits across **stimuli** (clips), not
+repeats; the held-out repeat is for noise ceiling, which we already
+have. Two coordinated fixes shipped:
+
+- **B-1 (`features.py`)**: new `pool="last_tubelet"` option. Token
+  order in V-JEPA-2 is temporal-major (t, h, w), so the last
+  `n_total / (clip_frames / tubelet_size)` tokens are the most-recent
+  tubelet step. We mean-pool only those (256 tokens for ViT-L
+  fpc64-256), keeping end-of-clip semantics that random init can't
+  replicate as cleanly as a global mean.
+- **B-2 (`encoding.py` + `stage3_encoder.py`)**: clip-holdout split.
+  Train on the first ~80 % of clips averaged over all 20 repeats;
+  test on the last 20 % of clips averaged over all 20 repeats; with
+  a `clip_frames`-wide gap (64 clips) between them so train and test
+  share *zero input pixels*. Per-target alpha still chosen by RidgeCV
+  LOO across train clips. Noise ceiling now computed on test clips
+  only so it's directly comparable to the encoding r.
+
+`fit_and_score_ridge` signature changed from `(X, Y_train, Y_test)` to
+`(X_train, Y_train, X_test, Y_test)`. New stage 2 dataset slugs
+(`-l16-tt`, `-l16-tt-rand`) since the features are different. Old
+slugs (`-l16`, `-l16-random`) preserved as the "global-mean fails to
+separate" baseline. Stage 3 keeps `lewm-brain-stage3` and versions on
+re-run.
+
 ## 2026-05-01 — final-block mean-pool can't separate pretrained from random
 Ran Stage 2 random-init control + Stage 3 against it. Pretrained r mean
 0.186 / median 0.166; random-init r mean 0.186 / median 0.168. Per-area

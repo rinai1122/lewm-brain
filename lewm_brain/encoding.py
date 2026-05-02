@@ -1,8 +1,14 @@
 """Ridge encoding model: model features -> per-neuron spike-count prediction.
 
-Train on the average of all-but-one repeats; test on the held-out repeat.
-Per-target ridge alpha (one alpha per unit) selected by sklearn's RidgeCV
-leave-one-out across frames. Reference: Schrimpf et al. 2018 §2.3.
+Default split: train on a contiguous chunk of clips (averaged over all
+repeats), test on a held-out chunk of clips at the other end of the
+movie. This forces features to generalize across stimulus content; the
+old "last repeat as test" split was insensitive to feature quality
+because adjacent sliding-stride-1 clips share 63/64 of their input,
+letting ridge cheat via temporal smoothing of the train mean.
+
+Per-target alpha (one alpha per unit) selected by sklearn's RidgeCV
+leave-one-out across train clips. Reference: Schrimpf et al. 2018 §2.3.
 """
 from __future__ import annotations
 
@@ -12,19 +18,20 @@ import numpy as np
 
 
 def fit_and_score_ridge(
-    X: np.ndarray,
+    X_train: np.ndarray,
     Y_train: np.ndarray,
+    X_test: np.ndarray,
     Y_test: np.ndarray,
     alpha_grid: list[float],
 ) -> dict[str, Any]:
-    """Returns: {'r': (n_units,) Pearson r on held-out test data,
+    """Returns: {'r': (n_units,) Pearson r on held-out test clips,
                  'alpha': (n_units,) selected alpha per unit,
-                 'Y_pred': (n_frames, n_units) model predictions}."""
+                 'Y_pred': (n_test, n_units) model predictions on test}."""
     from sklearn.linear_model import RidgeCV
 
     model = RidgeCV(alphas=alpha_grid, alpha_per_target=True)
-    model.fit(X, Y_train)
-    Y_pred = model.predict(X).astype(np.float32)
+    model.fit(X_train, Y_train)
+    Y_pred = model.predict(X_test).astype(np.float32)
 
     n_units = Y_train.shape[1]
     r = np.zeros(n_units, dtype=np.float32)

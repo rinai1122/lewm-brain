@@ -77,26 +77,47 @@ def run(
             f"-> {responses_aligned.shape}, but features have T={T_feat}."
         )
 
-    # 3. Train/test split: leave the LAST repeat out as held-out test.
-    n_train = R - 1
-    Y_train = responses_aligned[:n_train].astype(np.float32).mean(axis=0)
-    Y_test = responses_aligned[-1].astype(np.float32)
-    X = features.astype(np.float32)
-    print(f"[stage3] X {X.shape}, Y_train {Y_train.shape} "
-          f"(avg over {n_train} repeats), Y_test {Y_test.shape}")
+    # 3. Clip-based train/test split (Schrimpf 2018 §2.3 style). Train on a
+    # contiguous chunk of clips averaged over ALL repeats; test on a
+    # held-out chunk at the other end of the movie, with a `gap` buffer
+    # that's at least clip_frames wide so train and test clips share zero
+    # input pixels (sliding stride-1 clips overlap heavily otherwise).
+    s3_cfg = cfg.raw.get("stage3") or {}
+    test_frac = float(s3_cfg.get("test_frac", 0.20))
+    gap = int(s3_cfg.get("split_gap_clips", 64))  # = clip_frames default
+    n_test = int(round(T_feat * test_frac))
+    test_start = T_feat - n_test
+    n_train = test_start - gap
+    if n_train < 50:
+        raise RuntimeError(
+            f"clip split leaves too few train clips: T_feat={T_feat}, "
+            f"test={n_test}, gap={gap}, train={n_train}"
+        )
 
-    # 4. Fit ridge per neuron, score on held-out repeat.
+    Y_full = responses_aligned.astype(np.float32).mean(axis=0)  # avg all repeats
+    X = features.astype(np.float32)
+    X_train, Y_train = X[:n_train], Y_full[:n_train]
+    X_test, Y_test = X[test_start:], Y_full[test_start:]
+    print(f"[stage3] split: train clips [0, {n_train}), gap [{n_train}, "
+          f"{test_start}), test clips [{test_start}, {T_feat}); "
+          f"X_train {X_train.shape}, X_test {X_test.shape}")
+
+    # 4. Fit ridge per neuron, score on held-out clips.
     alpha_grid = list(cfg.raw.get("encoder", {}).get(
         "alpha_grid", [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0, 10000.0]))
     t0 = time.time()
-    result = encoding.fit_and_score_ridge(X, Y_train, Y_test, alpha_grid)
+    result = encoding.fit_and_score_ridge(
+        X_train, Y_train, X_test, Y_test, alpha_grid
+    )
     print(f"[stage3] ridge fit in {time.time() - t0:.1f}s; "
           f"per-unit r mean={np.nanmean(result['r']):.3f} "
           f"median={np.nanmedian(result['r']):.3f}")
 
-    # 5. Noise ceiling (split-half reliability across all repeats).
-    rel = encoding.split_half_reliability(responses_aligned)
-    print(f"[stage3] split-half reliability mean={np.nanmean(rel):.3f}")
+    # 5. Noise ceiling — split-half reliability on the TEST clips only, so
+    # encoding r and noise ceiling are computed on the same time points.
+    rel = encoding.split_half_reliability(responses_aligned[:, test_start:, :])
+    print(f"[stage3] split-half reliability on test clips mean="
+          f"{np.nanmean(rel):.3f}")
 
     # 6. Per-area summary if unit_meta available.
     per_area_r = {}
@@ -156,6 +177,13 @@ def run(
             "r_mean": float(np.nanmean(result["r"])),
             "r_median": float(np.nanmedian(result["r"])),
             "reliability_mean": float(np.nanmean(rel)),
+            "split": {
+                "policy": "clip_holdout",
+                "n_train_clips": int(n_train),
+                "n_test_clips": int(n_test),
+                "gap_clips": int(gap),
+                "test_start": int(test_start),
+            },
             "per_area_r": per_area_r,
             "per_area_rel": per_area_rel,
             "alpha_grid": alpha_grid,

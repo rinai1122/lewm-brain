@@ -30,6 +30,7 @@ def vjepa2_extract_features(
     device: str = "cuda",
     pool: str = "mean",
     layer_index: int | None = None,
+    tubelet_size: int = 2,
 ) -> np.ndarray:
     """Extract per-clip features from V-JEPA-2.
 
@@ -91,6 +92,22 @@ def vjepa2_extract_features(
                 hidden = outputs.hidden_states[layer_index]
             if pool == "mean":
                 pooled = hidden.mean(dim=1)
+            elif pool == "last_tubelet":
+                # Mean over the last temporal tubelet's spatial tokens only.
+                # Token order in V-JEPA-2 is temporal-major (t, h, w), so the
+                # last n_spatial tokens are the most-recent tubelet step.
+                # Pretrained vs random differ much more here than at global
+                # mean (verified: global mean gave CKA(pre, rand) ≈ 0.80).
+                n_total = hidden.shape[1]
+                n_temporal_slots = clip_frames // tubelet_size
+                if n_total % n_temporal_slots:
+                    raise ValueError(
+                        f"hidden token count {n_total} not divisible by "
+                        f"n_temporal_slots {n_temporal_slots} "
+                        f"(clip_frames={clip_frames}, tubelet_size={tubelet_size})"
+                    )
+                n_spatial = n_total // n_temporal_slots
+                pooled = hidden[:, -n_spatial:, :].mean(dim=1)
             else:
                 raise ValueError(f"unknown pool {pool!r}")
             feats.append(pooled.float().cpu().numpy())
