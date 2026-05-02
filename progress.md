@@ -301,3 +301,71 @@ on session 798911424 / `natural_movie_one`. Headline predictions to
 verify: pretrained should give Δ_pix-model ≫ 0; random-init should give
 Δ_pix-model ≈ 0; the cortical population should give Δ_pix-neural > 0
 (Hénaff's V1 result, replicated in mouse VIS).
+
+## 2026-05-02 — Stage 4 ran; pretrained curves, neural doesn't straighten
+Ran Stage 4 on session 798911424 / `natural_movie_one` for both
+pretrained and random-init V-JEPA-2 ViT-L (layer 16, last-tubelet
+pool). Mean per-step trajectory curvature θ:
+
+| Trajectory                  | θ      | Δ vs pixels |
+|-----------------------------|--------|-------------|
+| Pixels (304×608, 184832-D)  | 84.5°  | —           |
+| V-JEPA-2 random-init        | 96.6°  | +12.1°      |
+| V-JEPA-2 pretrained (l16)   | 160.2° | +75.7°      |
+| Mouse VIS pop. (avg 20 rep) | 115.8° | +31.3°      |
+
+Pretrained adds **+63.6° of curvature relative to random-init at the
+same architecture** — the curving is learned, not a tubelet-phase-flip
+artifact from sliding the 64-frame window by 1 frame (which would have
+shown up in random init too). Per-area neural θ is uniform across
+VISp/VISal/VISam/VISl/VISrl (113.8°–119.2°), all within ~4° of the
+i.i.d. baseline (120° for consecutive-difference trajectories) —
+population trajectory is essentially noise-dominated at this SNR
+(test-clip reliability 0.31).
+
+**Framing correction.** The previous progress entry predicted
+"Δ_pix-model ≫ 0" — i.e. pretrained should *straighten*. That misread
+Hénaff 2021: she reports that trained CNNs (AlexNet/VGG/ResNet) curve
+trajectories *more than pixels*, while V1/V2 straighten. So the
+negative Δ_pix-model = −76° we observed is qualitatively in line with
+her CNN result; only the magnitude is larger than typical for shallow
+CNNs (V-JEPA-2 is 24-layer ViT-L with a masked-prediction objective).
+The straightening prediction applies to *neural* data, not to model
+features.
+
+**On mouse cortex.** Δ_pix-neural = −31.3° — mouse VIS does not
+straighten natural movies on this metric. Caveats: (1) Hénaff's
+straightening was demonstrated in primate V1/V2; mouse VIS is
+functionally different and replication has not been clearly
+established. (2) Population θ (116°) is nearly at the i.i.d. baseline,
+so a real small straightening effect could be hidden under noise.
+
+**Tension worth recording.** Stage 3 ridge encoding showed V-JEPA-2
+features predict mouse VIS responses (Δr = +0.05 pretrained vs random,
+~31 % of explainable variance), yet here their trajectory geometries
+disagree sharply (model 160°, cortex 116°). Linear ridge can succeed
+without global geometry matching — it picks a low-D linear subspace
+per neuron, and within-subspace alignment is what r measures.
+Straightening measures the full population vector. So V-JEPA-2 is
+*predictive of* mouse VIS without being *geometrically isomorphic to*
+it. Plausibly publishable observation once we have the comparison
+families to anchor it.
+
+**Path resolver fix.** Stage 4's first run hit FileNotFoundError because
+`/kaggle/input/lewm-brain-stage1` doesn't exist on this account —
+Kaggle nests datasets under `/kaggle/input/datasets/<owner>/<slug>/`
+instead. Centralized input-path discovery in
+`kaggle_io.find_input_file`: tries the hint root, falls back to
+walking `/kaggle/input/` filtered by exact slug match (path component,
+not substring — so `-l16-tt` and `-l16-tt-rand` stay separable).
+Stage 3 + Stage 4 both use it now; future stages don't need to know
+the mount layout. Stage 3 progress entry on 2026-05-01 had flagged
+this exact issue and asked to "fold the deeper path into the
+defaults" — done as a generic resolver instead.
+
+Next: comparison families on Stage 2/3/4 — MAE / VideoMAE
+(pixel-predictive, the most direct foil to JEPA's masked-feature
+prediction), then a contrastive-SSL backbone, then ImageNet/Kinetics
+supervised. Expectations: if the +64° curving is masked-prediction-
+specific, MAE should also curve heavily; if it's generic to deep
+visual transformers, supervised ViT-L should too.
