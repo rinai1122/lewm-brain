@@ -161,6 +161,32 @@ lewm-brain-stage1 + lewm-brain-stage2" reminder, and the note that
 Stage 3 auto-publishes to `sungjiwang/lewm-brain-stage3`. Next: run the
 Stage 3 notebook on Kaggle.
 
+## 2026-05-02 — pipeline separates pretrained from random ✓
+Re-ran Stage 2 with `pool=last_tubelet` at layer 16 + Stage 3 with the
+clip-holdout split (train 0..605, gap 606..669, test 670..836). Both
+fixes together produced a clean separation:
+
+|              | r mean | r median | VISp   | VISal | VISam | VISl   | VISrl |
+|--------------|--------|----------|--------|-------|-------|--------|-------|
+| Pretrained   | 0.071  | 0.047    | 0.072  | 0.019 | 0.108 | 0.073  | 0.064 |
+| Random init  | 0.021  | 0.015    | -0.007 | 0.015 | 0.058 | -0.007 | 0.019 |
+| Δ            | +0.050 | +0.032   | +0.079 | +0.004| +0.050| +0.080 | +0.045|
+
+Test-clip split-half reliability 0.230 (the test-clip noise ceiling),
+so pretrained captures ~31 % of explainable variance — an honest cross-
+clip generalization number, not the within-clip memorization our earlier
+0.186 was measuring. Random init lands near zero on V1 + most HVAs as
+expected. Notable: **VISam (0.108) > VISp (0.072) for pretrained** —
+V-JEPA-2 ViT-L features are more motion/high-level than retinotopic,
+so they map better onto higher visual areas than primary V1. Worth
+flagging as a real (possibly publishable) finding once the pipeline
+is broadened.
+
+This closes the "one model, one session, end-to-end" arc. Next: Stage 4
+(Hénaff straightening) on the same session+model, then comparison
+families (MAE/VideoMAE pixel-predictive, contrastive SSL, supervised),
+then `natural_movie_three` (deferred so far).
+
 ## 2026-05-02 — layer 16 didn't separate either; full diagnosis + dual fix
 Stage 3 with mid-network (block 16) features still gave pretrained
 0.188 vs random 0.187, per-area patterns within 0.005 again. So layer
