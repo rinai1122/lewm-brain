@@ -278,3 +278,26 @@ Next: random-init noise floor — re-run Stage 2 with `model_index=1`
 re-publish to `lewm-brain-stage2` (will create v2), then re-run
 Stage 3 with `model_name="vjepa2_vitl_random"`. Then Stage 4
 (straightening).
+
+## 2026-05-02 — Stage 4 implementation (Hénaff 2021 straightening)
+Wrote `lewm_brain/straightening.py` and
+`lewm_brain/stages/stage4_straightening.py`. The math primitive is
+per-step trajectory curvature θ_t = arccos(<v_t, v_{t+1}> / (||v_t||
+||v_{t+1}||)) where v_t = x_{t+1} − x_t, plus a windowed-mean version
+that mirrors Hénaff's 11-frame natural-movie clip protocol. Stage 4
+loads Stage 1 neural + Stage 2 features + the Allen pixel template,
+aligns all three onto the same 837-step grid for `natural_movie_one`
+(= 900 − 64 + 1), and reports mean θ per space along with per-area
+neural θ. Float64 throughout — float32 dot products of ~10⁵-D pixel
+vectors give numerically wrong arccos near 0° / 180°. Sanity-checked
+the math locally: straight line → 0°, zigzag → 180°, i.i.d. trajectory
+→ 120° (the consecutive-difference baseline, since v_t and v_{t+1}
+share a common term). Auto-publishes to
+`sungjiwang/lewm-brain-stage4`. Stage 4 shim added to
+`notebooks/README.md`. The `straightening` block in `configs/default.yaml`
+now pins `window_frames: 11` and a stage4 dataset slug. Next: run the
+Stage 4 notebook on Kaggle for both pretrained and random-init V-JEPA-2
+on session 798911424 / `natural_movie_one`. Headline predictions to
+verify: pretrained should give Δ_pix-model ≫ 0; random-init should give
+Δ_pix-model ≈ 0; the cortical population should give Δ_pix-neural > 0
+(Hénaff's V1 result, replicated in mouse VIS).
