@@ -189,3 +189,79 @@ to `sungjiwang/lewm-brain-stage3`. Re-run with
 `model_name="vjepa2_vitl_random"`
 once the random-init Stage 2 features are also published, to get the
 noise-floor control.
+
+## Stage 4 — Straightening (Hénaff 2021)
+
+Computes per-step trajectory curvature in pixel / model / neural-population
+spaces on the same 837-step time grid (`natural_movie_one`), then reports
+mean θ per space and the headline Δθ. AllenSDK is needed again because
+the pixel template is pulled fresh from the Allen warehouse — the npz
+files in Stage 1 / 2 do not store raw pixels.
+
+Create a new Kaggle notebook. **Settings:**
+
+- Accelerator: **None** (CPU-only — no GPU work in Stage 4).
+- Internet: **On** (AllenSDK warehouse + the GitHub install).
+- Persistence: **Files only**.
+- Environment: **Always use latest**.
+- **Add Inputs**: `sungjiwang/lewm-brain-stage1` and the Stage 2 dataset
+  for the model you want to score (`sungjiwang/lewm-brain-stage2-l16-tt`
+  for the pretrained pull, `…-l16-tt-rand` for the random-init control).
+  These mount at `/kaggle/input/<slug>/`.
+
+Three cells:
+
+```bash
+# Cell 1 — same install as Stage 1 (AllenSDK is needed for pixels).
+!pip install --prefer-binary 'pynwb>=2.8,<3' 'hdmf>=3.14,<5' \
+    argschema simplejson marshmallow requests-toolbelt tqdm semver \
+    ndx-events cachetools nest_asyncio sqlalchemy jinja2
+!pip install --no-deps --prefer-binary git+https://github.com/AllenInstitute/AllenSDK.git
+!pip install git+https://github.com/rinai1122/lewm-brain.git
+```
+
+Restart the kernel after Cell 1 (Run → Restart).
+
+```python
+# Cell 2 — fetch config (same as earlier stages).
+import urllib.request, pathlib
+pathlib.Path("/kaggle/working/configs").mkdir(parents=True, exist_ok=True)
+urllib.request.urlretrieve(
+    "https://raw.githubusercontent.com/rinai1122/lewm-brain/main/configs/default.yaml",
+    "/kaggle/working/configs/default.yaml",
+)
+```
+
+```python
+# Cell 3 — run stage 4. Pass the actual mounted input paths if Kaggle
+# nests them under /kaggle/input/datasets/sungjiwang/<slug>/ for this
+# account (verified in the Stage 3 entry of progress.md).
+from pathlib import Path
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage4_straightening
+
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage4_straightening.run(
+    cfg,
+    model_name="vjepa2_vitl",
+    stage1_root=Path("/kaggle/input/lewm-brain-stage1"),
+    stage2_root=Path("/kaggle/input/lewm-brain-stage2-l16-tt"),
+)
+```
+
+Outputs land at `/kaggle/working/stage4/vjepa2_vitl/` and auto-publish
+to `sungjiwang/lewm-brain-stage4`. Re-run with
+`model_name="vjepa2_vitl_random"` and `stage2_root` pointing at
+`lewm-brain-stage2-l16-tt-rand` for the random-init noise floor.
+
+Headline numbers to eyeball in the printed log:
+
+- `Δ_pix-model` — pretrained model should make the trajectory
+  measurably straighter than raw pixels (Hénaff prediction; positive Δ).
+  Random-init should make it *less* straight — its representation is
+  effectively a random rotation of pixels, so curvature should match
+  pixel curvature within noise.
+- `Δ_pix-neural` — Hénaff 2021 §Results headline: cortex straightens
+  natural-video trajectories. We're reproducing this in mouse VIS,
+  which is a weaker prediction than their primate V1 result but worth
+  measuring.

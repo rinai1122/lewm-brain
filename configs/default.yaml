@@ -91,3 +91,10 @@ encoder:
 straightening:
   method: henaff_2021
   spaces: [pixel, model, neural]
+  # Hénaff 2021 §Methods: 11-frame natural-movie clips, mean per-step
+  # angle within each clip is the reported per-stimulus number.
+  window_frames: 11
+
+stage4:
+  dataset_id: sungjiwang/lewm-brain-stage4
+  dataset_title: lewm-brain stage 4 (straightening)
