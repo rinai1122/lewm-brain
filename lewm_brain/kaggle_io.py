@@ -1,13 +1,95 @@
 """Best-effort publish to a Kaggle Dataset (create or version) so partial
 outputs survive a kernel crash. Never raises — failed uploads just print a
 warning and the local files remain on disk for a manual retry.
+
+Also home to `find_input_file`, the path resolver every stage uses to load
+mounted Kaggle dataset files without caring exactly where Kaggle decided
+to mount them.
 """
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
+
+
+_KAGGLE_INPUT = Path("/kaggle/input")
+
+
+def find_input_file(filename: str, hint_root: Path | str | None = None) -> Path:
+    """Locate `filename` inside a mounted Kaggle input dataset.
+
+    Kaggle has been observed to mount datasets at two different layouts
+    depending on the account:
+
+    - the documented one, ``/kaggle/input/<slug>/...``
+    - a nested one, ``/kaggle/input/datasets/<owner>/<slug>/...``
+
+    Stages should not have to know which layout they're in. The resolver:
+
+    1. If ``hint_root`` exists, walks it recursively and returns the first
+       match.
+    2. Otherwise walks all of ``/kaggle/input/`` and filters matches whose
+       path contains the slug (= ``hint_root.name``). This avoids picking
+       up the wrong dataset when both pretrained and random-init Stage 2
+       outputs are mounted at once.
+    3. If still nothing, walks ``/kaggle/input/`` with no slug filter, but
+       only accepts a unique match (raises on ambiguity).
+
+    Raises ``FileNotFoundError`` with the full list of paths searched.
+    """
+    hint = Path(hint_root) if hint_root is not None else None
+
+    # Step 1 — explicit hint root, if it exists.
+    if hint is not None and hint.exists():
+        for dirpath, _, files in os.walk(hint):
+            if filename in files:
+                return Path(dirpath) / filename
+
+    # Step 2 — global walk under /kaggle/input, slug-filtered.
+    if not _KAGGLE_INPUT.exists():
+        raise FileNotFoundError(
+            f"{filename!r} not found and /kaggle/input does not exist "
+            f"(not running on Kaggle?). hint_root={hint}"
+        )
+
+    all_matches: list[Path] = []
+    for dirpath, _, files in os.walk(_KAGGLE_INPUT):
+        if filename in files:
+            all_matches.append(Path(dirpath) / filename)
+
+    if hint is not None:
+        # Match the slug as an exact path component, not a substring —
+        # otherwise 'lewm-brain-stage2-l16-tt' would also match the
+        # 'lewm-brain-stage2-l16-tt-rand' sibling dataset.
+        slug = hint.name
+        slug_matches = [m for m in all_matches if slug in m.parts]
+        if slug_matches:
+            chosen = slug_matches[0]
+            print(
+                f"[find_input] {filename}: hint {hint} not present; "
+                f"resolved by slug={slug!r} → {chosen}"
+            )
+            return chosen
+
+    # Step 3 — last-resort unique match.
+    if len(all_matches) == 1:
+        chosen = all_matches[0]
+        print(
+            f"[find_input] {filename}: hint {hint} not present; "
+            f"unique fallback → {chosen}"
+        )
+        return chosen
+
+    raise FileNotFoundError(
+        f"{filename!r} not found.\n"
+        f"  hint_root={hint} (exists={hint.exists() if hint else False})\n"
+        f"  /kaggle/input matches: {all_matches or 'none'}\n"
+        f"  Add the dataset as an Input on the Kaggle notebook, or pass "
+        f"the actual mounted path as the stage's root argument."
+    )
 
 
 # kaggle CLI 2.0.0 has a habit of returning exit code 0 even when it prints

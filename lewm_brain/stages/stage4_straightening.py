@@ -21,7 +21,6 @@ their AR(1) model so trial noise doesn't dominate the curvature.
 """
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
@@ -31,13 +30,6 @@ import pandas as pd
 
 from .. import allen_data, kaggle_io, stimuli, straightening
 from ..config import KAGGLE_WORKING, Config, write_artifact_manifest
-
-
-def _find(root: Path, filename: str) -> Path:
-    for dirpath, _, files in os.walk(root):
-        if filename in files:
-            return Path(dirpath) / filename
-    raise FileNotFoundError(f"{filename!r} not found anywhere under {root}")
 
 
 def _deg(rad: float | np.ndarray) -> float | np.ndarray:
@@ -60,11 +52,11 @@ def run(
     win = int(s4_cfg.get("window_frames", 11))   # Hénaff 2021 default
 
     # 1. Load Stage 1 neural + Stage 2 features.
-    print(f"[stage4] looking under {stage1_root} for neural__{stim}.npz")
-    neural_path = _find(stage1_root, f"neural__{stim}.npz")
+    print(f"[stage4] resolving neural__{stim}.npz (hint={stage1_root})")
+    neural_path = kaggle_io.find_input_file(f"neural__{stim}.npz", stage1_root)
     print(f"[stage4]   found {neural_path}")
-    print(f"[stage4] looking under {stage2_root} for features__{stim}.npz")
-    feats_path = _find(stage2_root, f"features__{stim}.npz")
+    print(f"[stage4] resolving features__{stim}.npz (hint={stage2_root})")
+    feats_path = kaggle_io.find_input_file(f"features__{stim}.npz", stage2_root)
     print(f"[stage4]   found {feats_path}")
 
     neural = np.load(neural_path)
@@ -124,7 +116,7 @@ def run(
     per_area_theta_deg: dict[str, float] = {}
     unit_meta = None
     try:
-        meta_path = _find(stage1_root, "unit_meta.csv")
+        meta_path = kaggle_io.find_input_file("unit_meta.csv", stage1_root)
         unit_meta = pd.read_csv(meta_path, index_col=0).loc[unit_ids]
         for area, sub in unit_meta.groupby("ecephys_structure_acronym"):
             cols = np.where(np.isin(unit_ids, sub.index.to_numpy()))[0]

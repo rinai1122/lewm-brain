@@ -24,13 +24,6 @@ from .. import encoding, kaggle_io
 from ..config import KAGGLE_WORKING, Config, write_artifact_manifest
 
 
-def _find(root: Path, filename: str) -> Path:
-    for dirpath, _, files in __import__("os").walk(root):
-        if filename in files:
-            return Path(dirpath) / filename
-    raise FileNotFoundError(f"{filename!r} not found anywhere under {root}")
-
-
 def _per_area_mean(values: np.ndarray, areas: pd.Series) -> dict[str, float]:
     """Mean of `values` indexed by area (Pandas Series indexed by unit_id)."""
     df = pd.DataFrame({"v": values, "area": areas.to_numpy()})
@@ -50,11 +43,11 @@ def run(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Load inputs.
-    print(f"[stage3] looking under {stage1_root} for neural__{stim}.npz")
-    neural_path = _find(stage1_root, f"neural__{stim}.npz")
+    print(f"[stage3] resolving neural__{stim}.npz (hint={stage1_root})")
+    neural_path = kaggle_io.find_input_file(f"neural__{stim}.npz", stage1_root)
     print(f"[stage3]   found {neural_path}")
-    print(f"[stage3] looking under {stage2_root} for features__{stim}.npz")
-    feats_path = _find(stage2_root, f"features__{stim}.npz")
+    print(f"[stage3] resolving features__{stim}.npz (hint={stage2_root})")
+    feats_path = kaggle_io.find_input_file(f"features__{stim}.npz", stage2_root)
     print(f"[stage3]   found {feats_path}")
 
     neural = np.load(neural_path)
@@ -123,7 +116,7 @@ def run(
     per_area_r = {}
     per_area_rel = {}
     try:
-        meta_path = _find(stage1_root, "unit_meta.csv")
+        meta_path = kaggle_io.find_input_file("unit_meta.csv", stage1_root)
         unit_meta = pd.read_csv(meta_path, index_col=0)
         unit_meta = unit_meta.loc[unit_ids]
         per_area_r = _per_area_mean(result["r"],
