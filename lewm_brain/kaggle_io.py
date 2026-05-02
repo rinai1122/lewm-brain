@@ -36,10 +36,31 @@ def publish_to_kaggle_dataset(
     """Push every regular file in `out_dir` to a Kaggle Dataset.
 
     `dataset_id` must be of the form `<username>/<dataset-slug>` where the
-    slug is 6-50 chars, lowercase letters / digits / dashes only.
+    slug is 6-50 chars, lowercase letters / digits / dashes only. The
+    `title` must also be 6-50 chars (kaggle CLI rejects out-of-range
+    titles with a non-zero exit code).
 
     Returns True on success, False on failure (does not raise).
     """
+    # Validate before paying the upload — far better than a stage that
+    # silently dropped its publish at the end of a 30-min GPU run.
+    if not (6 <= len(title) <= 50):
+        print(
+            f"[upload] dataset title must be 6-50 chars, got {len(title)}: "
+            f"{title!r}"
+        )
+        return False
+    if "/" not in dataset_id:
+        print(f"[upload] dataset_id must be '<owner>/<slug>', got {dataset_id!r}")
+        return False
+    slug = dataset_id.split("/", 1)[1]
+    if not (6 <= len(slug) <= 50):
+        print(
+            f"[upload] dataset slug must be 6-50 chars, got {len(slug)}: "
+            f"{slug!r}"
+        )
+        return False
+
     out_dir = Path(out_dir)
     if not out_dir.exists():
         print(f"[upload] {out_dir} doesn't exist; skipping")

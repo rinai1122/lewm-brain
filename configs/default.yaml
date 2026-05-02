@@ -59,7 +59,8 @@ models:
     # mean-pool produced CKA 0.80 vs random init, so we sample earlier.
     layer_index: 16
     dataset_id: sungjiwang/lewm-brain-stage2-l16
-    dataset_title: lewm-brain stage 2 (V-JEPA-2 ViT-L pretrained, layer 16)
+    # Kaggle dataset titles are capped at 50 chars; keep this short.
+    dataset_title: lewm-brain stage 2 L16 pretrained
   - name: vjepa2_vitl_random
     family: random_init
     hf_id: facebook/vjepa2-vitl-fpc64-256
@@ -69,7 +70,7 @@ models:
     init: random
     layer_index: 16
     dataset_id: sungjiwang/lewm-brain-stage2-l16-random
-    dataset_title: lewm-brain stage 2 (V-JEPA-2 ViT-L random init, layer 16)
+    dataset_title: lewm-brain stage 2 L16 random init
 
 encoder:
   model: ridge
