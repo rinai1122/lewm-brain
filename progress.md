@@ -421,3 +421,55 @@ the JEPA-vs-pixel-MAE table — Δr at Stage 3 (does V-JEPA-2's +0.05 hold
 up against a pixel-prediction baseline at matched scale?) and
 |θ_model − θ_cortex| at Stage 4 (which family's geometry sits closer
 to the 116° mouse-VIS population?).
+
+## 2026-05-03 — VideoMAE end-to-end: pixel-MAE wins both axes on this session
+All four VideoMAE runs landed (Stage 3 pretrained + random; Stage 4
+pretrained + random). The session 798911424 / `natural_movie_one`
+picture is now complete for two model families at matched scale
+(ViT-L, layer 16, last-tubelet pool, identical Stage-3/4 pipeline):
+
+|                        | V-JEPA-2 pre | V-JEPA-2 rand | VideoMAE pre | VideoMAE rand |
+|------------------------|--------------|---------------|--------------|---------------|
+| Stage 3 r mean         | 0.071        | 0.021         | **0.156**    | 0.011         |
+| Stage 3 Δr (pre−rand)  | +0.050       |               | **+0.145**   |               |
+| Stage 4 θ              | 160.2°       | 96.6°         | **109.8°**   | 80.4°         |
+| Stage 4 Δθ trained     | +63.6°       |               | **+29.4°**   |               |
+| \|θ − cortex 115.8°\|  | 44.4°        | 19.2°         | **6.0°**     | 35.4°         |
+
+Test-clip noise ceiling 0.230 in both Stage 3 runs (data property,
+not model). VideoMAE captures **63%** of explainable variance from
+training, V-JEPA-2 only ~22%. On geometry, VideoMAE pretrained sits
+**6° from cortex** vs V-JEPA-2's 44° overshoot. Pixel-MAE dominates
+on both axes simultaneously — the "predictive but not isomorphic"
+tension we noted for V-JEPA-2 on 2026-05-02 *resolves* for VideoMAE.
+
+**Framing shift.** Earlier I wrote that JEPA's curving was
+"qualitatively in line with Hénaff's CNN result" and might be
+JEPA-specific. The VideoMAE result revises that: both objectives
+curve trajectories more than pixels, but pixel-MAE curves *just
+enough* (+29° over pixels, lands ~6° from cortex) while JEPA
+*over-curves* (+64° over pixels, overshoots cortex by 44°). The
+random-init geometry is informative too — V-JEPA-2 random adds +12°
+of architecture-only curving, VideoMAE random sits *4° below* pixels
+(slight smoothing from the random linear projection). So the
+architecture-and-init-only baselines differ, but the trained
+trajectories diverge much more sharply: JEPA training is a stronger
+geometric perturbation than pixel-MAE training.
+
+**Per-area pattern is also informative.** VISp is essentially
+model-invariant (V-JEPA-2 pre 0.072 vs VideoMAE pre 0.076; even
+VideoMAE *random* hits 0.064). The pretrained-vs-random gap is
+concentrated in HVAs (VISal/VISam/VISl/VISrl). Mouse V1 looks
+poorly explained by 1024-D ViT-L features regardless of training,
+within this session's noise floor.
+
+**Caveats that gate any writeup.** n=1 session, 1 stim, 2 model
+families. To make the result defensible, in roughly this order:
+(i) replicate on `natural_movie_three` — same session, 4× more
+data, ~1 hr Kaggle wallclock total (Stage 2 re-run + Stage 3/4
+× 4); (ii) add a contrastive-SSL backbone — if it lands near
+cortex like VideoMAE, "JEPA is the outlier" stands; if it
+over-curves like JEPA, "pixel-MAE specifically lands near cortex"
+becomes the framing; (iii) add a second session for cross-session
+variance; (iv) supervised baseline last. Numbers + status checklist
+captured in `results.md`.
