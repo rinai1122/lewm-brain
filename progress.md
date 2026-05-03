@@ -529,3 +529,80 @@ Stage 3 × 2, then Stage 4 × 2. Same Kaggle gotcha as the VideoMAE
 rollout: append `--force-reinstall --no-deps` to the lewm-brain pip
 line in Cell 1, and re-run Cell 2 after `git pull`, or stale-wheel +
 stale-config will bite.
+
+## 2026-05-03 — DINOv2 end-to-end: third family lands; pixel-MAE still wins both
+All 6 DINOv2 Kaggle runs landed (Stage 2 pretrained + random in 11–12s
+each on T4, Stage 3 ridge fit in <2s each, Stage 4 in ~3s of curvature
++ pixel template fetch). The three-family table on session 798911424 /
+`natural_movie_one` at matched ViT-L scale, layer 16:
+
+|                            | V-JEPA-2 pre | VideoMAE pre | DINOv2 pre |
+|----------------------------|--------------|--------------|------------|
+| Stage 3 r mean             | 0.071        | **0.156**    | 0.122      |
+| Stage 3 Δr (pre−rand)      | +0.050       | **+0.145**   | +0.030     |
+| Stage 4 θ                  | 160.2°       | 109.8°       | 101.5°     |
+| Stage 4 Δθ trained (learned)| +63.6°      | +29.4°       | +16.4°     |
+| \|θ − cortex 115.8°\|      | 44.4°        | **6.0°**     | 14.3°      |
+
+Random-init θ — the architecture-and-init-only floor:
+
+|                | V-JEPA-2 rand | VideoMAE rand | DINOv2 rand |
+|----------------|---------------|---------------|-------------|
+| Stage 3 r mean | 0.021         | 0.011         | 0.092       |
+| Stage 4 θ      | 96.6°         | 80.4°         | 85.1°       |
+
+**Three-family read.** Pixel-MAE (VideoMAE) wins both axes by a margin
+that's consistent on Stage 3 *and* Stage 4 simultaneously. The other
+two families dissociate the two axes: V-JEPA-2 trades better
+predictivity (Δr +0.050 > DINOv2's +0.030) for worse cortex-geometry
+match (44° away vs DINOv2's 14°). DINOv2 trades worse predictivity for
+better geometry match. Neither is dominated by the other on individual
+axes; both are dominated by VideoMAE on both axes simultaneously.
+
+**Caveat that lands hardest on the DINOv2 row.** DINOv2 random-init Δr
+is **0.092** — much higher than V-JEPA-2 random (0.021) or VideoMAE
+random (0.011). Per-frame ViT-L projections at layer 16 are inherently
+more mouse-VIS-predictable than the clip-pooled video-encoder
+projections, even untrained — there's no temporal aggregation to
+average away frame-level pixel structure. So DINOv2's modest learned
+gap (+0.030) is partly a high-baseline effect, not a "training does
+little" signal. The cleaner per-family contrast for DINOv2 is the
+Stage 4 Δθ_learned (+16.4° vs the random's +0.6°), which is a
+training-only effect that the high-baseline argument can't explain.
+
+**Per-area pattern.** DINOv2 pretrained mirrors VideoMAE in the HVAs:
+VISal 0.141, VISam 0.170, VISl 0.137. VISp is again
+model-invariant-ish (DINOv2 pre 0.078 vs VideoMAE pre 0.076 vs DINOv2
+random 0.015 — so V1 *does* see a learning effect for image-mode
+features, unlike VideoMAE where random was already 0.064). VISrl is
+weird: DINOv2 pre 0.007 vs DINOv2 random 0.073, the only area where
+training *hurts* — but VISrl has only 52 units in this session so this
+is almost certainly noise, not signal.
+
+**Confound to flag for any writeup.** DINOv2 is image-mode, V-JEPA-2
+and VideoMAE are clip-mode. Sliding-stride-1 clip-mode features
+necessarily smooth across frames (consecutive clips share clip_frames-1
+input frames), so part of the geometry difference between DINOv2 and
+the video models is a temporal-aggregation artifact rather than a pure
+objective-function effect. The random-init baselines control for some
+of this (V-JEPA-2 random sits +12° above pixels just from architectural
+clip-overlap; DINOv2 random sits ~0° because no clip overlap), so the
+*learned* Δθ is interpretable despite the confound. But "JEPA over-
+curves vs DINOv2 under-curves" partly reflects "video-clip-pooling vs
+per-frame".
+
+**Family-naming honesty.** DINOv2 is self-distillation, not InfoNCE
+contrastive. We're using it as the (b) "non-generative SSL" stand-in
+because no clean ViT-L video-contrastive backbone exists on HF. Strict
+contrastive coverage would require either porting CVRL/VideoMoCo (a
+real project) or accepting CLIP ViT-L as a "language-supervised
+contrastive" entry in family (c)/(e). Status quo is fine for n=1
+sanity-check; revisit before any writeup.
+
+Next: depending on priority — (i) supervised baseline (e.g. Kinetics-
+finetuned VideoMAE or ImageNet-supervised ViT-L) to round out the 4-
+family taxonomy from CLAUDE.md, (ii) `natural_movie_three` replication
+(skipped earlier; would tighten all current numbers with 4× more
+data), (iii) second session for cross-session variance. The headline
+result (pixel-MAE wins both axes) is most defensible after either (ii)
+or (iii); (i) just adds another data point to the n=1 picture.

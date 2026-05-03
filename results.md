@@ -18,8 +18,8 @@ Test-clip split-half reliability (noise ceiling): **0.230**.
 | V-JEPA-2 ViT-L              | random     | 0.021  | 0.015    | -0.007 | 0.015  | 0.058 | -0.007 | 0.019 |
 | VideoMAE-large              | pretrained | 0.156  | 0.136    | 0.076  | 0.152  | 0.197 | 0.176  | 0.171 |
 | VideoMAE-large              | random     | 0.011  | 0.013    | 0.064  | -0.015 | -0.031| 0.067  | -0.003|
-| DINOv2-large (image)        | pretrained | _TBD_  | _TBD_    | _TBD_  | _TBD_  | _TBD_ | _TBD_  | _TBD_ |
-| DINOv2-large (image)        | random     | _TBD_  | _TBD_    | _TBD_  | _TBD_  | _TBD_ | _TBD_  | _TBD_ |
+| DINOv2-large (image)        | pretrained | 0.122  | 0.100    | 0.078  | 0.141  | 0.170 | 0.137  | 0.007 |
+| DINOv2-large (image)        | random     | 0.092  | 0.077    | 0.015  | 0.093  | 0.149 | 0.092  | 0.073 |
 
 Per-family Δr (pretrained − random):
 
@@ -27,7 +27,7 @@ Per-family Δr (pretrained − random):
 |----------------------|---------|-----------|
 | V-JEPA-2 ViT-L       | +0.050  | +0.032    |
 | VideoMAE-large       | **+0.145** | **+0.123** |
-| DINOv2-large (image) | _TBD_   | _TBD_     |
+| DINOv2-large (image) | +0.030  | +0.023    |
 
 **Read.** If VideoMAE Δr ≈ V-JEPA-2 Δr, then masked-feature vs
 masked-pixel doesn't matter for mouse-VIS predictivity at this scale —
@@ -55,8 +55,8 @@ Models:
 | V-JEPA-2 ViT-L  | random     | 96.6°  | +12.1°      | 19.2°          |
 | VideoMAE-large  | pretrained | 109.8° | +25.3°      | **6.0°**       |
 | VideoMAE-large  | random     | 80.4°  | -4.1°       | 35.4°          |
-| DINOv2-large    | pretrained | _TBD_  | _TBD_       | _TBD_          |
-| DINOv2-large    | random     | _TBD_  | _TBD_       | _TBD_          |
+| DINOv2-large    | pretrained | 101.5° | +17.0°      | 14.3°          |
+| DINOv2-large    | random     | 85.1°  | +0.6°       | 30.7°          |
 
 Per-family curving learned by training (θ_pretrained − θ_random):
 
@@ -64,7 +64,7 @@ Per-family curving learned by training (θ_pretrained − θ_random):
 |----------------------|----------------------|
 | V-JEPA-2 ViT-L       | +63.6°               |
 | VideoMAE-large       | +29.4°               |
-| DINOv2-large         | _TBD_                |
+| DINOv2-large         | +16.4°               |
 
 **Read.** V-JEPA-2 pretrained sits 44° *more curved* than mouse VIS;
 random init sits 19° below. If VideoMAE pretrained also overshoots cortex
@@ -81,12 +81,12 @@ predicting worse, and the Stage 3 / Stage 4 dissociation noted on
 - [x] Run 2 — Stage 3, VideoMAE random → `lewm-brain-stage3-vmae-rand` (2026-05-03)
 - [x] Run 3 — Stage 4, VideoMAE pretrained → `lewm-brain-stage4-vmae` (2026-05-03)
 - [x] Run 4 — Stage 4, VideoMAE random → `lewm-brain-stage4-vmae-rand` (2026-05-03)
-- [ ] Run 5 — Stage 2, DINOv2 pretrained (`model_index=4`) → `lewm-brain-stage2-dino-l16`
-- [ ] Run 6 — Stage 2, DINOv2 random (`model_index=5`) → `lewm-brain-stage2-dino-l16-rand`
-- [ ] Run 7 — Stage 3, DINOv2 pretrained → `lewm-brain-stage3-dino`
-- [ ] Run 8 — Stage 3, DINOv2 random → `lewm-brain-stage3-dino-rand`
-- [ ] Run 9 — Stage 4, DINOv2 pretrained → `lewm-brain-stage4-dino`
-- [ ] Run 10 — Stage 4, DINOv2 random → `lewm-brain-stage4-dino-rand`
+- [x] Run 5 — Stage 2, DINOv2 pretrained → `lewm-brain-stage2-dino-l16` (2026-05-03)
+- [x] Run 6 — Stage 2, DINOv2 random → `lewm-brain-stage2-dino-l16-rand` (2026-05-03)
+- [x] Run 7 — Stage 3, DINOv2 pretrained → `lewm-brain-stage3-dino` (2026-05-03)
+- [x] Run 8 — Stage 3, DINOv2 random → `lewm-brain-stage3-dino-rand` (2026-05-03)
+- [x] Run 9 — Stage 4, DINOv2 pretrained → `lewm-brain-stage4-dino` (2026-05-03)
+- [x] Run 10 — Stage 4, DINOv2 random → `lewm-brain-stage4-dino-rand` (2026-05-03)
 
 Kaggle gotcha (carry over from 2026-05-03): re-run Cell 2 after
 `git pull`, and append `--force-reinstall --no-deps` to the lewm-brain
