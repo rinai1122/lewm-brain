@@ -208,11 +208,22 @@ def run(
           f"(positive = cortical population is straighter than pixels — "
           f"Hénaff 2021 prediction)")
 
-    # 7. Auto-publish.
+    # 7. Auto-publish. Per-model slug wins if set — without it, separate
+    # models would version-clobber each other on the same dataset (the
+    # upload dir is one model_name's flat files, so a 2nd model's version
+    # erases the 1st model's outputs).
     s4 = cfg.raw.get("stage4") or {}
-    ds_id = s4.get("dataset_id")
+    model_cfg = next(
+        (m for m in cfg.raw.get("models", []) if m.get("name") == model_name),
+        {},
+    )
+    ds_id = model_cfg.get("stage4_dataset_id") or s4.get("dataset_id")
     if ds_id:
-        ds_title = s4.get("dataset_title", f"lewm-brain stage4 ({model_name})")
+        ds_title = (
+            model_cfg.get("stage4_dataset_title")
+            or s4.get("dataset_title")
+            or f"lewm-brain stage4 ({model_name})"
+        )
         try:
             kaggle_io.publish_to_kaggle_dataset(out_dir, ds_id, ds_title)
         except Exception as exc:

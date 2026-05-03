@@ -45,7 +45,7 @@ def run(
     # 1. Model + processor.
     print(f"[stage2] loading {hf_id} (init={init}, layer={layer_index})")
     import torch
-    model, processor = features.load_vjepa2(
+    model, processor = features.load_backbone(
         hf_id, init=init, seed=seed, dtype="float16",
     )
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -64,7 +64,7 @@ def run(
         print(f"[stage2] {stim} pixels: shape={pixels.shape}, dtype={pixels.dtype}")
 
         t0 = time.time()
-        feats = features.vjepa2_extract_features(
+        feats = features.extract_clip_features(
             model, processor, pixels,
             clip_frames=clip_frames,
             stride=1,

@@ -82,6 +82,43 @@ models:
     tubelet_size: 2
     dataset_id: sungjiwang/lewm-brain-stage2-l16-tt-rand
     dataset_title: lewm-brain stage 2 L16 TT random init
+  # VideoMAE-large: pixel-level video MAE — the natural baseline (a) for
+  # the JEPA vs pixel-prediction contrast. ViT-L scale matches V-JEPA-2.
+  # Native preset is 16 frames, 224². Don't try to force 64 frames here;
+  # the positional embeddings are learned for 16. tubelet_size=2 like
+  # V-JEPA-2, and num_hidden_layers=24 so layer_index=16 is the same
+  # ≈2/3-depth midpoint we use for the JEPA pull.
+  - name: videomae_large
+    family: pixel_predictive
+    hf_id: MCG-NJU/videomae-large
+    clip_frames: 16
+    clip_resolution: 224
+    clip_window: sliding_stride_1
+    layer_index: 16
+    pool: last_tubelet
+    tubelet_size: 2
+    dataset_id: sungjiwang/lewm-brain-stage2-vmae-l16-tt
+    dataset_title: lewm-brain stage 2 VMAE L16 TT pretrained
+    stage3_dataset_id: sungjiwang/lewm-brain-stage3-vmae
+    stage3_dataset_title: lewm-brain stage 3 (videomae)
+    stage4_dataset_id: sungjiwang/lewm-brain-stage4-vmae
+    stage4_dataset_title: lewm-brain stage 4 (videomae)
+  - name: videomae_large_random
+    family: random_init
+    hf_id: MCG-NJU/videomae-large
+    clip_frames: 16
+    clip_resolution: 224
+    clip_window: sliding_stride_1
+    init: random
+    layer_index: 16
+    pool: last_tubelet
+    tubelet_size: 2
+    dataset_id: sungjiwang/lewm-brain-stage2-vmae-l16-tt-rand
+    dataset_title: lewm-brain stage 2 VMAE L16 TT random init
+    stage3_dataset_id: sungjiwang/lewm-brain-stage3-vmae-rand
+    stage3_dataset_title: lewm-brain stage 3 (videomae rand)
+    stage4_dataset_id: sungjiwang/lewm-brain-stage4-vmae-rand
+    stage4_dataset_title: lewm-brain stage 4 (videomae rand)
 
 encoder:
   model: ridge

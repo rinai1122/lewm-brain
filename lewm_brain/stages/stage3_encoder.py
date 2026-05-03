@@ -184,11 +184,22 @@ def run(
     )
     print(f"[stage3] wrote {out_dir}")
 
-    # 9. Auto-publish.
+    # 9. Auto-publish. Per-model slug wins if set — without it, separate
+    # models would version-clobber each other on the same dataset (the
+    # upload dir is one model_name's flat files, so a 2nd model's version
+    # erases the 1st model's outputs).
     s3 = cfg.raw.get("stage3") or {}
-    ds_id = s3.get("dataset_id")
+    model_cfg = next(
+        (m for m in cfg.raw.get("models", []) if m.get("name") == model_name),
+        {},
+    )
+    ds_id = model_cfg.get("stage3_dataset_id") or s3.get("dataset_id")
     if ds_id:
-        ds_title = s3.get("dataset_title", f"lewm-brain stage3 ({model_name})")
+        ds_title = (
+            model_cfg.get("stage3_dataset_title")
+            or s3.get("dataset_title")
+            or f"lewm-brain stage3 ({model_name})"
+        )
         try:
             kaggle_io.publish_to_kaggle_dataset(out_dir, ds_id, ds_title)
         except Exception as exc:

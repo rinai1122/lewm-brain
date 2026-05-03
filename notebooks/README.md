@@ -138,6 +138,27 @@ stage2_features.run(cfg, model_index=1)  # random-init control
 This produces `vjepa2_vitl_random/features__{stim}.npz` — the
 noise-floor control needed for the encoding-model comparison.
 
+### Stage 2 (alt model) — VideoMAE-large
+
+`MCG-NJU/videomae-large` is the pixel-level video MAE baseline (family
+(a)). Same notebook scaffold; the model entry at `model_index=2`
+(pretrained) and `model_index=3` (random-init) lives in
+`configs/default.yaml`. VideoMAE-large's native preset is 16 frames at
+224² (positional embeddings are learned for that length — don't try to
+force 64), so wallclock is shorter than V-JEPA-2 per stim.
+
+```python
+# Cell 3 — VideoMAE pretrained.
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage2_features
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage2_features.run(cfg, model_index=2)
+```
+
+Then re-run with `model_index=3` for the random-init control. Outputs
+publish to `sungjiwang/lewm-brain-stage2-vmae-l16-tt` and
+`…-vmae-l16-tt-rand`.
+
 ## Stage 3 — Ridge encoding model
 
 Fits a per-neuron ridge regression from V-JEPA-2 features to neural
@@ -189,6 +210,34 @@ to `sungjiwang/lewm-brain-stage3`. Re-run with
 `model_name="vjepa2_vitl_random"`
 once the random-init Stage 2 features are also published, to get the
 noise-floor control.
+
+### Stage 3 — VideoMAE encoding
+
+For the VideoMAE pull, **add Inputs** for
+`sungjiwang/lewm-brain-stage1` and
+`sungjiwang/lewm-brain-stage2-vmae-l16-tt` (or `…-vmae-l16-tt-rand` for
+the noise floor). Then:
+
+```python
+from pathlib import Path
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage3_encoder
+
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage3_encoder.run(
+    cfg,
+    model_name="videomae_large",
+    stage1_root=Path("/kaggle/input/lewm-brain-stage1"),
+    stage2_root=Path("/kaggle/input/lewm-brain-stage2-vmae-l16-tt"),
+)
+```
+
+Outputs auto-publish to `sungjiwang/lewm-brain-stage3-vmae` (per-model
+slug, configured in `configs/default.yaml` so VideoMAE doesn't clobber
+the V-JEPA-2 Stage 3 dataset). Re-run with
+`model_name="videomae_large_random"` and `stage2_root` pointing at
+`…-vmae-l16-tt-rand` for the noise floor; that one publishes to
+`sungjiwang/lewm-brain-stage3-vmae-rand`.
 
 ## Stage 4 — Straightening (Hénaff 2021)
 
@@ -253,6 +302,30 @@ Outputs land at `/kaggle/working/stage4/vjepa2_vitl/` and auto-publish
 to `sungjiwang/lewm-brain-stage4`. Re-run with
 `model_name="vjepa2_vitl_random"` and `stage2_root` pointing at
 `lewm-brain-stage2-l16-tt-rand` for the random-init noise floor.
+
+### Stage 4 — VideoMAE straightening
+
+Same scaffold; swap inputs to the VideoMAE Stage 2 dataset and pass the
+matching `model_name`:
+
+```python
+from pathlib import Path
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage4_straightening
+
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage4_straightening.run(
+    cfg,
+    model_name="videomae_large",
+    stage1_root=Path("/kaggle/input/lewm-brain-stage1"),
+    stage2_root=Path("/kaggle/input/lewm-brain-stage2-vmae-l16-tt"),
+)
+```
+
+Auto-publishes to `sungjiwang/lewm-brain-stage4-vmae` (per-model slug;
+won't collide with the V-JEPA-2 Stage 4 dataset). Re-run with
+`model_name="videomae_large_random"` and `stage2_root` pointing at
+`…-vmae-l16-tt-rand` to publish to `…-stage4-vmae-rand`.
 
 Headline numbers to eyeball in the printed log:
 

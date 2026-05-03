@@ -1,5 +1,12 @@
-"""Backbone feature extraction. First model: V-JEPA-2 ViT-L
-(`facebook/vjepa2-vitl-fpc64-256`).
+"""Backbone feature extraction.
+
+Supports any Hugging Face video encoder whose processor takes a list of
+(T, H, W, 3) numpy arrays and whose forward returns
+``last_hidden_state`` plus optional ``hidden_states`` with temporal-major
+token layout (t, h, w). Verified for:
+
+  - V-JEPA-2 ViT-L  (`facebook/vjepa2-vitl-fpc64-256`)  — JEPA family
+  - VideoMAE large  (`MCG-NJU/videomae-large`)         — pixel-MAE family
 """
 from __future__ import annotations
 
@@ -20,7 +27,7 @@ def _ensure_rgb_uint8(pixels: np.ndarray) -> np.ndarray:
     raise ValueError(f"unexpected pixel shape {pixels.shape}")
 
 
-def vjepa2_extract_features(
+def extract_clip_features(
     model: Any,
     processor: Any,
     pixels: np.ndarray,
@@ -32,7 +39,11 @@ def vjepa2_extract_features(
     layer_index: int | None = None,
     tubelet_size: int = 2,
 ) -> np.ndarray:
-    """Extract per-clip features from V-JEPA-2.
+    """Extract per-clip features from a transformer video encoder.
+
+    Works for V-JEPA-2 and VideoMAE — both take a list of (T, H, W, 3)
+    numpy arrays through their processor, both return temporal-major
+    (t, h, w) token order, both use tubelet_size=2.
 
     pixels: (T, H, W) uint8 grayscale OR (T, H, W, 3) uint8 RGB.
     Returns: (n_clips, hidden_size) float32 array.
@@ -44,8 +55,8 @@ def vjepa2_extract_features(
     depth, e.g. block 16 of 24 for ViT-L) are what Brain-Score-style
     encoding uses, since the final block + global mean-pool washes out
     the structure that distinguishes a pretrained network from a random
-    one (verified empirically: CKA(pretrained, random) ≈ 0.80 at the
-    final-block mean-pool level).
+    one (verified empirically on V-JEPA-2: CKA(pretrained, random) ≈ 0.80
+    at the final-block mean-pool level).
 
     Per-frame assignment downstream: clip k spans pixels[k : k+clip_frames];
     we assign its feature to frame `k + clip_frames - 1` (the last frame of
@@ -117,26 +128,40 @@ def vjepa2_extract_features(
     return np.concatenate(feats, axis=0)
 
 
-def load_vjepa2(
+def load_backbone(
     hf_id: str,
     init: str = "pretrained",
     seed: int = 0,
     dtype: str = "float16",
 ):
-    """Load (model, processor). `init='random'` returns a freshly-initialized
-    model with the same architecture but no pretrained weights, for the
-    Brain-Score-style noise-floor control.
+    """Load (model, processor) for a Hugging Face video encoder.
 
-    Defaults to fp16 weights + SDPA attention to fit ViT-L 64-frame 256² on
-    a 16 GB T4. Eager attention materializes the full 8192×8192 attention
-    matrix per layer, which OOMs on T4.
+    `init='random'` returns a freshly-initialized model with the same
+    architecture but no pretrained weights, for the Brain-Score-style
+    noise-floor control.
+
+    V-JEPA-2 registers an `AutoVideoProcessor`; VideoMAE only registers
+    `AutoImageProcessor`. Both processors take the same list-of-clips
+    input, so we try the video one first and fall back.
+
+    Defaults to fp16 weights + SDPA attention to fit ViT-L 64-frame 256²
+    on a 16 GB T4. Eager attention materializes the full 8192×8192
+    attention matrix per layer, which OOMs on T4.
     """
     import torch
-    from transformers import AutoConfig, AutoModel, AutoVideoProcessor
+    from transformers import AutoConfig, AutoImageProcessor, AutoModel
 
     torch_dtype = {"float32": torch.float32, "float16": torch.float16,
                    "bfloat16": torch.bfloat16}[dtype]
-    processor = AutoVideoProcessor.from_pretrained(hf_id)
+
+    processor = None
+    try:
+        from transformers import AutoVideoProcessor
+        processor = AutoVideoProcessor.from_pretrained(hf_id)
+    except Exception:
+        processor = None
+    if processor is None:
+        processor = AutoImageProcessor.from_pretrained(hf_id)
 
     common_kwargs = {"attn_implementation": "sdpa"}
 
