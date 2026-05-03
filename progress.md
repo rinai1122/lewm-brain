@@ -473,3 +473,59 @@ over-curves like JEPA, "pixel-MAE specifically lands near cortex"
 becomes the framing; (iii) add a second session for cross-session
 variance; (iv) supervised baseline last. Numbers + status checklist
 captured in `results.md`.
+
+## 2026-05-03 — DINOv2-large wired in as the (b) contrastive-SSL stand-in
+Skipped `natural_movie_three` for now (user call) and wired the
+contrastive-SSL family next. Picked `facebook/dinov2-large` — ViT-L/14,
+hidden_size=1024, image-only self-distillation pretraining on LVD-142M.
+
+**Why DINOv2 vs alternatives.** No clean ViT-L *video*-contrastive
+backbone exists on HF: CVRL and VideoMoCo are CNN-era and unported,
+TimeSformer/ViViT releases are supervised, and InternVideo is at a
+different scale. Pure InfoNCE-contrastive image options on HF
+(`openai/clip-vit-large-patch14`) inject text supervision, which makes
+them a different family than (b). DINOv2 is the canonical
+non-generative-SSL ViT in current neuro-encoding work. Caveat:
+strictly DINOv2 is self-distillation, not InfoNCE — so we're using "(b)
+contrastive SSL" loosely to mean "non-generative SSL", and writeups
+should call this out. The CLAUDE.md (b) entry already says "specific
+checkpoints TBD", so this fits.
+
+**Pipeline change.** Image-only backbone needs per-frame extraction,
+not clip-windowed. Added `features.extract_frame_features` (mirrors
+`extract_clip_features` shape contract — list of frames in, `(T, D)`
+out — with `pool='cls' | 'mean_patches' | 'mean'`). Stage 2 dispatches
+on a new `frame_mode: clip | image` model-config field; image-mode
+writes `first_frame_with_feature=0` so Stage 3/4 alignment "just works"
+without further changes. Default extractor batch size for image-mode is
+32 (vs 1 for video-mode) since the per-frame compute is much cheaper.
+
+For `natural_movie_one`: features will be `(900, 1024)` rather than
+837/885 (V-JEPA-2/VideoMAE), because every movie frame yields a
+feature. Train/test split with `split_gap_clips: 64` gives n_train=656
+/ n_test=180 / gap=64 — plenty wide; no config change needed. Per-area
+Stage 4 curvature still uses the same dimension-agnostic per-step
+arccos primitive.
+
+**Config additions.** `dinov2_vitl` (model_index=4, pretrained) and
+`dinov2_vitl_random` (model_index=5, random init), pinned to dataset
+slugs `lewm-brain-stage{2,3,4}-dino[-l16][-rand]`. README appended with
+Stage 2/3/4 shims for both inits. Per-model `stage3_dataset_id` /
+`stage4_dataset_id` already supported by the existing per-model slug
+dispatch (added during the VideoMAE rollout), so no code change
+needed beyond the new config entries.
+
+**What hasn't been verified.** DINOv2 hasn't been run on Kaggle yet —
+the per-frame processor call form and the random-init seeded-config
+load path will both get exercised on the first Stage 2 run. Worth
+watching if random-init at layer 16 with CLS-pool gives clean
+separation from pretrained; if not, fall back to `pool: mean_patches`
+(the V-JEPA-2 last-tubelet-equivalent: drop the high-leverage
+aggregator token and mean over the rest).
+
+Next user action: 6 Kaggle runs to land the DINOv2 row in `results.md`
+— Stage 2 × 2 (pretrained model_index=4, random model_index=5), then
+Stage 3 × 2, then Stage 4 × 2. Same Kaggle gotcha as the VideoMAE
+rollout: append `--force-reinstall --no-deps` to the lewm-brain pip
+line in Cell 1, and re-run Cell 2 after `git pull`, or stale-wheel +
+stale-config will bite.

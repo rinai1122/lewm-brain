@@ -159,6 +159,37 @@ Then re-run with `model_index=3` for the random-init control. Outputs
 publish to `sungjiwang/lewm-brain-stage2-vmae-l16-tt` and
 `…-vmae-l16-tt-rand`.
 
+### Stage 2 (alt model) — DINOv2-large (contrastive-SSL family)
+
+`facebook/dinov2-large` is the (b) contrastive-SSL family stand-in —
+ViT-L/14, image-only, self-distillation pretraining on LVD-142M. No
+clip window: each frame is processed independently, so feature output
+is `(n_movie_frames, 1024)` (e.g. 900 for `natural_movie_one` rather
+than 837 for V-JEPA-2). `model_index=4` is pretrained, `model_index=5`
+is random-init.
+
+Same notebook scaffold as the other Stage 2 models; the only difference
+is that `frame_mode: image` in the config dispatches the per-frame
+extractor (`features.extract_frame_features`) instead of the clip-based
+one.
+
+```python
+# Cell 3 — DINOv2 pretrained.
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage2_features
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage2_features.run(cfg, model_index=4)
+```
+
+Then re-run with `model_index=5` for the random-init control. Outputs
+publish to `sungjiwang/lewm-brain-stage2-dino-l16` and
+`…-dino-l16-rand`.
+
+**Expected wallclock**: DINOv2 ViT-L at 224² fp16 with batch=32 on T4 is
+≈3–5 ms/frame, so `natural_movie_one` (900 frames) should land in
+well under a minute, plus model-load + pixel-template fetch overhead
+(~1–2 min total).
+
 ## Stage 3 — Ridge encoding model
 
 Fits a per-neuron ridge regression from V-JEPA-2 features to neural
@@ -238,6 +269,32 @@ the V-JEPA-2 Stage 3 dataset). Re-run with
 `model_name="videomae_large_random"` and `stage2_root` pointing at
 `…-vmae-l16-tt-rand` for the noise floor; that one publishes to
 `sungjiwang/lewm-brain-stage3-vmae-rand`.
+
+### Stage 3 — DINOv2 encoding
+
+For the DINOv2 pull, **add Inputs** for `sungjiwang/lewm-brain-stage1`
+and `sungjiwang/lewm-brain-stage2-dino-l16` (or `…-dino-l16-rand` for
+the noise floor). Then:
+
+```python
+from pathlib import Path
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage3_encoder
+
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage3_encoder.run(
+    cfg,
+    model_name="dinov2_vitl",
+    stage1_root=Path("/kaggle/input/lewm-brain-stage1"),
+    stage2_root=Path("/kaggle/input/lewm-brain-stage2-dino-l16"),
+)
+```
+
+Auto-publishes to `sungjiwang/lewm-brain-stage3-dino`. Re-run with
+`model_name="dinov2_vitl_random"` and `stage2_root` pointing at
+`…-dino-l16-rand`. Note: DINOv2 features are (900, 1024) for
+`natural_movie_one` rather than 837/885 (every frame has a feature),
+so the train/test split has more clips than the video-encoder runs.
 
 ## Stage 4 — Straightening (Hénaff 2021)
 
@@ -326,6 +383,29 @@ Auto-publishes to `sungjiwang/lewm-brain-stage4-vmae` (per-model slug;
 won't collide with the V-JEPA-2 Stage 4 dataset). Re-run with
 `model_name="videomae_large_random"` and `stage2_root` pointing at
 `…-vmae-l16-tt-rand` to publish to `…-stage4-vmae-rand`.
+
+### Stage 4 — DINOv2 straightening
+
+```python
+from pathlib import Path
+from lewm_brain.config import load_config
+from lewm_brain.stages import stage4_straightening
+
+cfg = load_config("/kaggle/working/configs/default.yaml")
+stage4_straightening.run(
+    cfg,
+    model_name="dinov2_vitl",
+    stage1_root=Path("/kaggle/input/lewm-brain-stage1"),
+    stage2_root=Path("/kaggle/input/lewm-brain-stage2-dino-l16"),
+)
+```
+
+Auto-publishes to `sungjiwang/lewm-brain-stage4-dino`. Re-run with
+`model_name="dinov2_vitl_random"` + `stage2_root=…-dino-l16-rand` for
+the noise floor. The "model trajectory" here is per-frame DINOv2
+features over all 900 frames, vs the per-clip 837-step grid for
+V-JEPA-2 — comparable in spirit, with the model's temporal granularity
+matching the pixel/neural grids one-to-one.
 
 Headline numbers to eyeball in the printed log:
 

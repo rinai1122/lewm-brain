@@ -30,20 +30,24 @@ def run(
     model_cfg = cfg.raw["models"][model_index]
     model_name = model_cfg["name"]
     hf_id = model_cfg["hf_id"]
-    clip_frames = int(model_cfg["clip_frames"])
+    frame_mode = str(model_cfg.get("frame_mode", "clip"))
     init = model_cfg.get("init", "pretrained")
     layer_index = model_cfg.get("layer_index")
     if layer_index is not None:
         layer_index = int(layer_index)
     pool = str(model_cfg.get("pool", "mean"))
-    tubelet_size = int(model_cfg.get("tubelet_size", 2))
     seed = int(cfg.raw.get("seed", 0))
+    # Clip-mode-only fields. Default to safe values so image-mode entries
+    # don't have to declare them.
+    clip_frames = int(model_cfg.get("clip_frames", 1))
+    tubelet_size = int(model_cfg.get("tubelet_size", 2))
 
     out_dir = out_root / model_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Model + processor.
-    print(f"[stage2] loading {hf_id} (init={init}, layer={layer_index})")
+    print(f"[stage2] loading {hf_id} (init={init}, layer={layer_index}, "
+          f"frame_mode={frame_mode})")
     import torch
     model, processor = features.load_backbone(
         hf_id, init=init, seed=seed, dtype="float16",
@@ -64,19 +68,33 @@ def run(
         print(f"[stage2] {stim} pixels: shape={pixels.shape}, dtype={pixels.dtype}")
 
         t0 = time.time()
-        feats = features.extract_clip_features(
-            model, processor, pixels,
-            clip_frames=clip_frames,
-            stride=1,
-            batch_size=int(cfg.raw.get("stage2_batch_size", 1)),
-            device=device,
-            pool=pool,
-            layer_index=layer_index,
-            tubelet_size=tubelet_size,
-        )
+        if frame_mode == "clip":
+            feats = features.extract_clip_features(
+                model, processor, pixels,
+                clip_frames=clip_frames,
+                stride=1,
+                batch_size=int(cfg.raw.get("stage2_batch_size", 1)),
+                device=device,
+                pool=pool,
+                layer_index=layer_index,
+                tubelet_size=tubelet_size,
+            )
+            first_frame = clip_frames - 1
+        elif frame_mode == "image":
+            feats = features.extract_frame_features(
+                model, processor, pixels,
+                batch_size=int(cfg.raw.get("stage2_batch_size", 32)),
+                device=device,
+                pool=pool,
+                layer_index=layer_index,
+            )
+            first_frame = 0
+        else:
+            raise ValueError(f"unknown frame_mode {frame_mode!r}")
         elapsed = time.time() - t0
+        unit = "clip" if frame_mode == "clip" else "frame"
         print(f"[stage2] {stim}: features {feats.shape} in {elapsed:.1f}s "
-              f"({elapsed / max(1, feats.shape[0]) * 1000:.1f} ms/clip)")
+              f"({elapsed / max(1, feats.shape[0]) * 1000:.1f} ms/{unit})")
 
         np.savez_compressed(
             out_dir / f"features__{stim}.npz",
@@ -84,7 +102,7 @@ def run(
             n_movie_frames=int(pixels.shape[0]),
             clip_frames=clip_frames,
             stride=1,
-            first_frame_with_feature=clip_frames - 1,
+            first_frame_with_feature=first_frame,
         )
         summary[stim] = {
             "features_shape": list(feats.shape),
@@ -116,6 +134,7 @@ def run(
             "model_name": model_name,
             "hf_id": hf_id,
             "init": init,
+            "frame_mode": frame_mode,
             "layer_index": layer_index,
             "pool": pool,
             "tubelet_size": tubelet_size,

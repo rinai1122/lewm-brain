@@ -1,12 +1,18 @@
 """Backbone feature extraction.
 
-Supports any Hugging Face video encoder whose processor takes a list of
-(T, H, W, 3) numpy arrays and whose forward returns
-``last_hidden_state`` plus optional ``hidden_states`` with temporal-major
-token layout (t, h, w). Verified for:
+Two extractor flavors live here:
 
-  - V-JEPA-2 ViT-L  (`facebook/vjepa2-vitl-fpc64-256`)  — JEPA family
-  - VideoMAE large  (`MCG-NJU/videomae-large`)         — pixel-MAE family
+  - ``extract_clip_features``: video encoders whose processor takes a list
+    of (T, H, W, 3) clips and whose forward returns temporal-major
+    (t, h, w) tokens. Verified for V-JEPA-2 ViT-L (JEPA family) and
+    VideoMAE large (pixel-MAE family).
+
+  - ``extract_frame_features``: image encoders that consume one frame at a
+    time. Verified for DINOv2 large (self-distillation / non-generative
+    SSL family). Stage 2 dispatches on the model entry's ``frame_mode``
+    field (``clip`` or ``image``). Output is (n_frames, hidden_size) with
+    ``first_frame_with_feature = 0`` so Stage 3/4 alignment falls out of
+    the same npz contract as the clip path.
 """
 from __future__ import annotations
 
@@ -124,6 +130,86 @@ def extract_clip_features(
             feats.append(pooled.float().cpu().numpy())
             if (i // batch_size) % 50 == 0:
                 print(f"[features]   clip {i}/{n_clips}")
+
+    return np.concatenate(feats, axis=0)
+
+
+def extract_frame_features(
+    model: Any,
+    processor: Any,
+    pixels: np.ndarray,
+    batch_size: int = 32,
+    device: str = "cuda",
+    pool: str = "cls",
+    layer_index: int | None = None,
+) -> np.ndarray:
+    """Extract one feature vector per movie frame from an image encoder.
+
+    Used for image-only backbones like DINOv2 that have no temporal axis.
+    Token layout for these models is (CLS, patch_1, ..., patch_n), so:
+
+      - ``pool='cls'`` returns the CLS token (the canonical pooled rep
+        used by DINOv2 classification benchmarks).
+      - ``pool='mean_patches'`` returns the mean over patch tokens only
+        (drops CLS). Useful as a fallback if CLS doesn't separate
+        pretrained from random-init at a given layer.
+      - ``pool='mean'`` is the legacy "mean over everything including
+        CLS" — kept for parity with the clip extractor's default.
+
+    pixels: (T, H, W) uint8 grayscale OR (T, H, W, 3) uint8 RGB.
+    Returns: (T, hidden_size) float32 array — one row per movie frame.
+
+    Per-frame assignment downstream is trivial: feature row `t` lines up
+    with movie frame `t`. Callers should write
+    ``first_frame_with_feature=0`` into the Stage 2 npz so Stage 3/4
+    alignment uses zero offset.
+    """
+    import torch
+
+    T = pixels.shape[0]
+    if T < 1:
+        raise ValueError(f"empty movie (T={T})")
+
+    pixels_rgb = _ensure_rgb_uint8(pixels)  # (T, H, W, 3) uint8 — single copy
+    print(f"[features] {T} frames "
+          f"(image-mode); movie buffer {pixels_rgb.nbytes / 1e9:.2f} GB; "
+          f"layer={'last' if layer_index is None else layer_index}; "
+          f"pool={pool!r}")
+
+    model.eval().to(device)
+    model_dtype = next(model.parameters()).dtype
+
+    feats = []
+    with torch.no_grad():
+        for i in range(0, T, batch_size):
+            j = min(i + batch_size, T)
+            # List of (H, W, 3) uint8 frames — unambiguous to the HF
+            # image processor (4D ndarrays can be interpreted as either
+            # (B, H, W, C) or (B, C, H, W) depending on the processor).
+            batch_frames = [pixels_rgb[s] for s in range(i, j)]
+            inputs = processor(batch_frames, return_tensors="pt")
+            inputs = {
+                k: (v.to(device, dtype=model_dtype)
+                    if torch.is_floating_point(v) else v.to(device))
+                for k, v in inputs.items()
+            }
+            if layer_index is None:
+                outputs = model(**inputs)
+                hidden = outputs.last_hidden_state  # (B, 1+n_patches, D)
+            else:
+                outputs = model(**inputs, output_hidden_states=True)
+                hidden = outputs.hidden_states[layer_index]
+            if pool == "cls":
+                pooled = hidden[:, 0, :]
+            elif pool == "mean_patches":
+                pooled = hidden[:, 1:, :].mean(dim=1)
+            elif pool == "mean":
+                pooled = hidden.mean(dim=1)
+            else:
+                raise ValueError(f"unknown pool {pool!r} for image-mode")
+            feats.append(pooled.float().cpu().numpy())
+            if (i // batch_size) % 10 == 0:
+                print(f"[features]   frame {i}/{T}")
 
     return np.concatenate(feats, axis=0)
 

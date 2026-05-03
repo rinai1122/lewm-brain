@@ -119,6 +119,42 @@ models:
     stage3_dataset_title: lewm-brain stage 3 (videomae rand)
     stage4_dataset_id: sungjiwang/lewm-brain-stage4-vmae-rand
     stage4_dataset_title: lewm-brain stage 4 (videomae rand)
+  # DINOv2-large: image-only self-distillation SSL on LVD-142M, the (b)
+  # contrastive-SSL family stand-in. Strict-contrastive video backbones
+  # at ViT-L scale (CVRL, VideoMoCo) have no clean HF release; DINOv2 is
+  # the canonical non-generative-SSL ViT in current neuro-encoding work.
+  # Caveat documented in progress.md (2026-05-03 contrastive entry).
+  # ViT-L/14, hidden_size=1024 — matches V-JEPA-2 ViT-L and VideoMAE-large
+  # so Stage 3/4 numbers are at matched feature scale. layer_index=16 for
+  # the same ≈2/3-depth midpoint we use elsewhere; pool=cls is DINOv2's
+  # canonical pooled rep. Image-mode: per-frame, no clip window.
+  - name: dinov2_vitl
+    family: contrastive_ssl
+    hf_id: facebook/dinov2-large
+    frame_mode: image
+    clip_resolution: 224
+    layer_index: 16
+    pool: cls
+    dataset_id: sungjiwang/lewm-brain-stage2-dino-l16
+    dataset_title: lewm-brain stage 2 DINO L16 pretrained
+    stage3_dataset_id: sungjiwang/lewm-brain-stage3-dino
+    stage3_dataset_title: lewm-brain stage 3 (dinov2)
+    stage4_dataset_id: sungjiwang/lewm-brain-stage4-dino
+    stage4_dataset_title: lewm-brain stage 4 (dinov2)
+  - name: dinov2_vitl_random
+    family: random_init
+    hf_id: facebook/dinov2-large
+    frame_mode: image
+    clip_resolution: 224
+    init: random
+    layer_index: 16
+    pool: cls
+    dataset_id: sungjiwang/lewm-brain-stage2-dino-l16-rand
+    dataset_title: lewm-brain stage 2 DINO L16 random init
+    stage3_dataset_id: sungjiwang/lewm-brain-stage3-dino-rand
+    stage3_dataset_title: lewm-brain stage 3 (dinov2 rand)
+    stage4_dataset_id: sungjiwang/lewm-brain-stage4-dino-rand
+    stage4_dataset_title: lewm-brain stage 4 (dinov2 rand)
 
 encoder:
   model: ridge
