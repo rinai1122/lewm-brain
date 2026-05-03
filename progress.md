@@ -369,3 +369,55 @@ prediction), then a contrastive-SSL backbone, then ImageNet/Kinetics
 supervised. Expectations: if the +64° curving is masked-prediction-
 specific, MAE should also curve heavily; if it's generic to deep
 visual transformers, supervised ViT-L should too.
+
+## 2026-05-03 — VideoMAE-large Stage 2 (both inits)
+First comparison-family backbone on disk: `MCG-NJU/videomae-large` at
+its native preset (16 frames, 224², tubelet_size=2, hidden_size=1024).
+Pretrained and random-init both ran in **88s wallclock** for
+`natural_movie_one` — ~3× faster than V-JEPA-2 ViT-L (~5 min) because
+16-frame 224² has 1568 tokens per clip vs V-JEPA-2's 8192. Output
+features are `(885, 1024)` per stim (885 = 900 − 16 + 1 stride-1
+clips). Published as `lewm-brain-stage2-vmae-l16-tt` (pretrained) and
+`…-vmae-l16-tt-rand` (random) — separate from the V-JEPA-2 datasets,
+so Stage 3 / Stage 4 can mount them per-model without collision.
+
+**Loader change (commit `a5234c7`).** `features.load_vjepa2` →
+`features.load_backbone`, with `AutoVideoProcessor.from_pretrained`
+tried first and `AutoImageProcessor.from_pretrained` as fallback —
+VideoMAE only registers under the image-processor auto-class. The
+existing tubelet-pool extractor handled VideoMAE unchanged: same
+temporal-major (t, h, w) token order, same tubelet_size=2, so the
+last-tubelet pool just picks the last 196 spatial tokens
+(= 16/2 × 14 × 14 = 1568 / 8). `vjepa2_extract_features` →
+`extract_clip_features` to match. Stage 3 / Stage 4 picked up per-model
+`stage3_dataset_id` / `stage4_dataset_id` lookup with stage-level
+fallback, so V-JEPA-2 entries (no per-model slug) keep using
+`lewm-brain-stage3` / `…-stage4` while VideoMAE goes to
+`lewm-brain-stage{3,4}-vmae[-rand]`.
+
+**MAE decoder weights are fine.** Loading `MCG-NJU/videomae-large` into
+`VideoMAEModel` (encoder-only) prints UNEXPECTED for all 12
+`decoder.decoder_layers.*` keys plus `decoder.norm.*`,
+`decoder.head.*`, `mask_token`, and `encoder_to_decoder.weight`. These
+are the MAE pretraining decoder + the masked-token slot — discarded
+intentionally when extracting encoder features. Encoder weights
+themselves load cleanly.
+
+**Kaggle cache gotcha — log for future-me.** First Stage 2 attempt hit
+`IndexError: list index out of range` on
+`cfg.raw["models"][model_index=2]`. Two stale layers at once: (1) the
+Kaggle notebook's `pip install git+…lewm-brain.git` had cached the
+pre-VideoMAE wheel from a prior install, and (2) `Cell 2` had not been
+re-run, so `/kaggle/working/configs/default.yaml` was still the stale
+2-model config. Fix: append `--force-reinstall --no-deps` to the
+lewm-brain pip line in Cell 1, restart kernel, then re-run Cell 2. This
+will bite every time we land a code+config change in one commit; worth
+either folding into the README or adding a `cfg` consistency check at
+import time (e.g. `assert len(cfg.raw["models"]) >= model_index + 1`
+with a "did you re-run Cell 2 after `git pull`?" hint).
+
+Next: Stage 3 + Stage 4 for both VideoMAE inits (4 runs total). Then
+the JEPA-vs-pixel-MAE table — Δr at Stage 3 (does V-JEPA-2's +0.05 hold
+up against a pixel-prediction baseline at matched scale?) and
+|θ_model − θ_cortex| at Stage 4 (which family's geometry sits closer
+to the 116° mouse-VIS population?).
